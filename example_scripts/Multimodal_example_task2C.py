@@ -157,7 +157,7 @@ from transformers import AutoModel, BertModel
 # Define the multimodal classification model
 # Define the multimodal classification model
 class MultimodalClassifier(nn.Module):
-    def __init__(self, num_classes, fusion_method, text_model_name, image_model_name):
+    def __init__(self, num_classes, fusion_method):
         super(MultimodalClassifier, self).__init__()
         
         # Text model
