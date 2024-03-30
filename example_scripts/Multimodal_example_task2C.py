@@ -161,95 +161,103 @@ import torch.nn as nn
 import timm
 from transformers import AutoModel
 
+class ConcatAttention(nn.Module):
+    def __init__(self, input_dim, attention_dim):
+        super(ConcatAttention, self).__init__()
+        self.attention_layer = nn.Sequential(
+            nn.Linear(input_dim, attention_dim),
+            nn.Tanh(),
+            nn.Linear(attention_dim, 1),
+            nn.Softmax(dim=1)
+        )
+    
+    def forward(self, text_features, image_features):
+        concatenated_features = torch.cat((text_features, image_features), dim=1)
+        attention_weights = self.attention_layer(concatenated_features)
+        attended_features = attention_weights * concatenated_features
+        return attended_features.sum(dim=1)
+
+class CrossModalAttention(nn.Module):
+    def __init__(self, feature_dim):
+        super(CrossModalAttention, self).__init__()
+        self.text_to_image_attention = nn.Linear(feature_dim, feature_dim)
+        self.image_to_text_attention = nn.Linear(feature_dim, feature_dim)
+    
+    def forward(self, text_features, image_features):
+        # Text-to-Image Attention
+        text_att = self.text_to_image_attention(text_features)
+        text_att = torch.bmm(text_att.unsqueeze(1), image_features.unsqueeze(2))
+        text_att = F.softmax(text_att, dim=-1)
+        
+        # Image-to-Text Attention
+        image_att = self.image_to_text_attention(image_features)
+        image_att = torch.bmm(image_att.unsqueeze(1), text_features.unsqueeze(2))
+        image_att = F.softmax(image_att, dim=-1)
+        
+        attended_text = text_att * text_features
+        attended_image = image_att * image_features
+        
+        return attended_text + attended_image
+
+class SelfAttentionFusion(nn.Module):
+    def __init__(self, feature_dim, num_heads=1):
+        super(SelfAttentionFusion, self).__init__()
+        self.attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=num_heads)
+    
+    def forward(self, text_features, image_features):
+        # Concatenate features from both modalities
+        features = torch.cat((text_features.unsqueeze(0), image_features.unsqueeze(0)), dim=0)
+        # Apply multi-head attention
+        attended_features, _ = self.attention(features, features, features)
+        # You might want to combine or process these features further
+        combined_features = attended_features.sum(dim=0)  # Simple sum for demonstration
+        return combined_features
+
 class MultimodalClassifier(nn.Module):
     def __init__(self, num_classes, fusion_method):
         super(MultimodalClassifier, self).__init__()
         
         # Initialize text model from a pre-trained model
-        self.text_model = AutoModel.from_pretrained(text_model_name)  # [batch_size, sequence_length, hidden_size]
+        self.text_model = AutoModel.from_pretrained(text_model_name)
         self.text_dropout = nn.Dropout(0.3)
         text_hidden_size = self.text_model.config.hidden_size
         
         # Fully connected layer for text features
-        self.text_fc = nn.Linear(text_hidden_size, 512)  # [batch_size, 512]
+        self.text_fc = nn.Linear(text_hidden_size, 512)
         
         # Initialize image model from a pre-trained model
-        self.image_model = timm.create_model(image_model_name, pretrained=True)  # [batch_size, num_features, height, width]
-        # image_hidden_size = self.image_model.num_features
-        
-        # Pooling layer to reduce image dimensions
+        self.image_model = timm.create_model(image_model_name, pretrained=True)
         num_features = self.image_model.classifier.in_features
         self.image_model.classifier = nn.Linear(num_features, num_classes)
         
         self.fusion_method = fusion_method
-        # Dynamically adjust the input size of the output layer based on the fusion method
-        fusion_output_size = 1024 if fusion_method in ['concatenation', 'attention_fusion', 'bilinear_fusion', 'gated_fusion'] else 512
-        self.output_fc = nn.Linear(fusion_output_size, num_classes)  # [batch_size, num_classes]
+        if fusion_method == 'concatenation':
+            self.fusion_layer = ConcatAttention(1024, 512)
+        elif fusion_method == 'cross_modal':
+            self.fusion_layer = CrossModalAttention(512)
+        elif fusion_method == 'self_attention':
+            self.fusion_layer = SelfAttentionFusion(512)
+        else:
+            raise ValueError(f"Unsupported fusion method: {fusion_method}")
+        
+        fusion_output_size = 512 if fusion_method in ['concatenation', 'cross_modal', 'self_attention'] else 512
+        self.output_fc = nn.Linear(fusion_output_size, num_classes)
     
     def forward(self, text, image, mask):
-        # Text processing
         text_output = self.text_model(text, attention_mask=mask).last_hidden_state
         text_output = self.text_dropout(text_output[:, 0, :])
-        text_output = self.text_fc(text_output)  # [batch_size, 512]
+        text_output = self.text_fc(text_output)
         
-        # Image processing
-        image_output = self.image_model(image) # [batch_size, 512]
+        image_output = self.image_model(image)
         
-        # Fusion
-        if hasattr(self, self.fusion_method):
-            fused_output = getattr(self, self.fusion_method)(text_output, image_output)
+        if hasattr(self, 'fusion_layer'):
+            fused_output = self.fusion_layer(text_output, image_output)
         else:
             raise ValueError(f"Unsupported fusion method: {self.fusion_method}")
         
-        # Final classification layer
         output = self.output_fc(fused_output)
         
         return output
-
-    # Fusion methods
-    def concatenation(self, text_features, image_features):
-        return torch.cat((text_features, image_features), dim=1)  # Output: (batch_size, 1024)
-
-    def addition(self, text_features, image_features):
-        return text_features + image_features  # Output: (batch_size, 512)
-
-    def subtraction(self, text_features, image_features):
-        return text_features - image_features  # Output: (batch_size, 512)
-
-    def multiplication(self, text_features, image_features):
-        return text_features * image_features  # Output: (batch_size, 512)
-
-    def attention_fusion(self, text_features, image_features):
-        # Compute attention weights
-        attention_weights = torch.matmul(text_features, image_features.transpose(1, 2))  # Output: (batch_size, 512, 512)
-        attention_weights = torch.softmax(attention_weights, dim=2)  # Output: (batch_size, 512, 512)
-        
-        # Attend to image features
-        attended_image_features = torch.matmul(attention_weights, image_features)  # Output: (batch_size, 512, 512)
-        
-        # Concatenate attended image features with text features
-        fused_features = torch.cat((text_features, attended_image_features), dim=1)  # Output: (batch_size, 1024)
-        
-        return fused_features
-
-    def bilinear_fusion(self, text_features, image_features):
-        # Compute bilinear interaction
-        bilinear_interaction = torch.matmul(text_features, image_features.transpose(1, 2))  # Output: (batch_size, 512, 512)
-        bilinear_interaction = torch.flatten(bilinear_interaction, start_dim=1)  # Output: (batch_size, 512*512)
-        
-        return bilinear_interaction
-
-    def gated_fusion(self, text_features, image_features):
-        # Compute gate weights
-        gate_weights = torch.sigmoid(torch.matmul(text_features, image_features.transpose(1, 2)))  # Output: (batch_size, 512, 512)
-        
-        # Apply gate to image features
-        gated_image_features = gate_weights * image_features  # Output: (batch_size, 512, 512)
-        
-        # Concatenate gated image features with text features
-        fused_features = torch.cat((text_features, gated_image_features), dim=1)  # Output: (batch_size, 1024)
-        
-        return fused_features
 
 # Define the training and testing functions
 def train(model, train_loader, criterion, optimizer, device, epoch):
