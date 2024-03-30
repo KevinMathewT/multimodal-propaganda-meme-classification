@@ -222,8 +222,8 @@ if max_eval_samples is not None:
     max_eval_samples_n = min(len(eval_dataset), max_eval_samples)
     eval_dataset = eval_dataset.select(range(max_eval_samples_n))
 
-if "test" not in raw_datasets and "test_matched" not in raw_datasets:
-    raise ValueError("requires a test dataset")
+# if "test" not in raw_datasets and "test_matched" not in raw_datasets:
+#     raise ValueError("requires a test dataset")
 # predict_dataset = raw_datasets["test"]
 # if max_predict_samples is not None:
 #     max_predict_samples_n = min(len(predict_dataset), max_predict_samples)
