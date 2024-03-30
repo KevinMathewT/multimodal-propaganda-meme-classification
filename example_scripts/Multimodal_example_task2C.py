@@ -208,10 +208,15 @@ class CrossModalAttention(nn.Module):
         # Text-to-Image Attention
         text_att = self.ttoi_attention_layer(text_features)
         attended_i_features = text_att * image_features
+
+        print(f"Sizes: {text_att.size()} | {text_features.size()} | {image_features.size()} | {attended_i_features.size()} |")
         
         # Image-to-Text Attention
         image_att = self.itot_attention_layer(image_features)
         attended_t_features = image_att * text_features
+
+        print(f"Sizes: {image_att.size()} | {text_features.size()} | {image_features.size()} | {attended_t_features.size()} |")
+        print(f"Sizes: {attended_i_features.size()} | {attended_t_features.size()} | {(attended_i_features + attended_t_features).size()} | {(attended_i_features + attended_t_features).sum(dim=1).size()} |")
         
         return (attended_i_features + attended_t_features).sum(dim=1)
 
