@@ -16,6 +16,7 @@ max_train_samples = None
 max_eval_samples=None
 max_predict_samples=None
 batch_size = 16
+best_accuracy = 0.0
 
 import csv
 from torch.cuda.amp import autocast, GradScaler
