@@ -167,6 +167,7 @@ from transformers import AutoModel, BertModel
 # Define the multimodal classification model
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import timm
 from transformers import AutoModel
 
@@ -223,6 +224,7 @@ class SelfAttentionFusion(nn.Module):
         return combined_features
 
 fusion_method = 'cross_modal'
+print(f"Using Fusion: {fusion_method}")
 
 class MultimodalClassifier(nn.Module):
     def __init__(self, num_classes, fusion_method):
