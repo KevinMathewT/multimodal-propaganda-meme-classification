@@ -52,7 +52,7 @@ validation_file = 'arabic_memes_propaganda_araieval_24_dev.json'
 
 training_args = TrainingArguments(
     learning_rate=2e-5,
-    num_train_epochs=1,
+    num_train_epochs=10,
     per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
     output_dir="./distilBERT_m/",
