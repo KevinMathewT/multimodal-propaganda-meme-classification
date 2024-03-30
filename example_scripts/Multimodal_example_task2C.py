@@ -157,17 +157,20 @@ from transformers import AutoModel, BertModel
 # Define the multimodal classification model
 # Define the multimodal classification model
 class MultimodalClassifier(nn.Module):
-    def __init__(self, num_classes, fusion_method):
+    def __init__(self, num_classes, fusion_method, text_model_name, image_model_name):
         super(MultimodalClassifier, self).__init__()
         
-        # Text model (e.g., BERT, RoBERTa, XLNet)
+        # Text model
         self.text_model = AutoModel.from_pretrained(text_model_name)
         self.text_dropout = nn.Dropout(0.3)
-        self.text_fc = nn.Linear(self.text_model.config.hidden_size, 512)
+        text_hidden_size = self.text_model.config.hidden_size
+        self.text_fc = nn.Linear(text_hidden_size, 512)
         
-        # Image model (from timm library)
+        # Image model
         self.image_model = timm.create_model(image_model_name, pretrained=True)
-        self.image_fc = nn.Linear(self.image_model.num_features, 512)
+        image_hidden_size = self.image_model.num_features
+        self.image_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.image_fc = nn.Linear(image_hidden_size, 512)
         
         # Fusion method
         self.fusion_method = fusion_method
@@ -183,6 +186,7 @@ class MultimodalClassifier(nn.Module):
         
         # Image input through the image model
         image_output = self.image_model(image)
+        image_output = self.image_pool(image_output).flatten(1)
         image_output = self.image_fc(image_output)
         
         # Fusion layer
@@ -240,37 +244,40 @@ def gated_fusion(text_features, image_features):
     return fused_features
 
 # Define the training and testing functions
-def train(model, train_loader, criterion, optimizer, device):
+def train(model, train_loader, criterion, optimizer, device, epoch):
     model.train()
     train_loss = 0.0
     correct = 0
-    for data in tqdm(train_loader):
+    total_batches = len(train_loader)
+    for batch_idx, data in enumerate(train_loader, 1):
         optimizer.zero_grad()
         text = data["text"].to(device)
-        #print(text.shape)
         image = data["image"].to(device)
         mask = data["text_mask"].to(device)
-        #print(mask.shape)
         labels = data['label'].to(device)
         output = model(text, image, mask)
-        #print(output)
         loss = criterion(output, labels)
-        #print(loss)
         loss.backward()
         optimizer.step()
         train_loss += loss.item() * labels.size(0)
         _, predicted = torch.max(output, 1)
         correct += (predicted == labels).sum().item()
+        
+        if batch_idx % 10 == 0:
+            print(f"| Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |")
+    
     train_loss /= len(train_loader.dataset)
     accuracy = correct / len(train_loader.dataset)
+    print(f"| Epoch [{epoch}] | Training Loss: {train_loss:.4f} | Accuracy: {accuracy:.4f} |")
     return train_loss, accuracy
 
-def test(model, test_loader, criterion, device):
+def test(model, test_loader, criterion, device, epoch):
     model.eval()
     test_loss = 0.0
     correct = 0
+    total_batches = len(test_loader)
     with torch.no_grad():
-        for data in tqdm(test_loader):
+        for batch_idx, data in enumerate(test_loader, 1):
             text = data["text"].to(device)
             image = data["image"].to(device)
             mask = data["text_mask"].to(device)
@@ -280,8 +287,13 @@ def test(model, test_loader, criterion, device):
             test_loss += loss.item() * labels.size(0)
             _, predicted = torch.max(output, 1)
             correct += (predicted == labels).sum().item()
+            
+            if batch_idx % 10 == 0:
+                print(f"| Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |")
+    
     test_loss /= len(test_loader.dataset)
     accuracy = correct / len(test_loader.dataset)
+    print(f"| Epoch [{epoch}] | Testing Loss: {test_loss:.4f} | Accuracy: {accuracy:.4f} |")
     return test_loss, accuracy
 
 
@@ -292,7 +304,7 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=2e-5)
 
 # Train the model
-num_epochs = 1
+num_epochs = 5
 for epoch in range(num_epochs):
     train_loss, acc = train(model, train_df, criterion, optimizer, device)
     #dev_loss, accuracy = test(model, eval_dataset, criterion, device)
