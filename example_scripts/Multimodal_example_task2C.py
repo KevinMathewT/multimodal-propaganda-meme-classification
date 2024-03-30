@@ -194,6 +194,7 @@ class MultimodalClassifier(nn.Module):
         
         # Image processing
         image_output = self.image_model(image)
+        print(f"image_output dim: {image_output.size()}")
         image_output = self.image_pool(image_output).flatten(1)
         image_output = self.image_fc(image_output)  # [batch_size, 512]
         
@@ -265,6 +266,7 @@ def train(model, train_loader, criterion, optimizer, device, epoch):
         image = data["image"].to(device)
         mask = data["text_mask"].to(device)
         labels = data['label'].to(device)
+        print(f"image dim: {image.size()}")
         output = model(text, image, mask)
         loss = criterion(output, labels)
         loss.backward()
