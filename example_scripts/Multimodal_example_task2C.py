@@ -326,6 +326,9 @@ def train(model, train_loader, criterion, optimizer,  scheduler, device, epoch, 
                 output = model(text, image, mask)
                 loss = criterion(output, labels)
             scaler.scale(loss).backward()
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float('inf'))
+            max_grad_norm = 1.0  # Adjust the threshold as needed
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
             scaler.step(optimizer)
             scaler.update()
         else:
@@ -336,6 +339,9 @@ def train(model, train_loader, criterion, optimizer,  scheduler, device, epoch, 
             output = model(text, image, mask)
             loss = criterion(output, labels)
             loss.backward()
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float('inf'))
+            max_grad_norm = 1.0  # Adjust the threshold as needed
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
             optimizer.step()
         
         scheduler.step()
@@ -347,7 +353,7 @@ def train(model, train_loader, criterion, optimizer,  scheduler, device, epoch, 
         if batch_idx % 10 == 0:
             current_lr = scheduler.get_last_lr()[0]  # Get the current learning rate
             avg_loss = sum(batch_losses) / len(batch_losses)  # Calculate the average loss
-            print(f"TRAIN | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {avg_loss:.4f} | LR: {current_lr} |")
+            print(f"TRAIN | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {avg_loss:.4f} | LR: {current_lr} | Grad Norm: {grad_norm:.4f} |")
             batch_losses = []  # Reset the batch losses for the next 10 steps
 
         # Check test accuracy at equidistant intervals
