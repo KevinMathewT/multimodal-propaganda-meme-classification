@@ -175,10 +175,11 @@ class MultimodalClassifier(nn.Module):
         
         # Initialize image model from a pre-trained model
         self.image_model = timm.create_model(image_model_name, pretrained=True)  # [batch_size, num_features, height, width]
-        image_hidden_size = self.image_model.num_features
+        # image_hidden_size = self.image_model.num_features
         
         # Pooling layer to reduce image dimensions
-        self.image_fc = nn.Linear(image_hidden_size, 512)  # [batch_size, 512]
+        num_features = self.image_model.classifier.in_features
+        self.model.classifier = nn.Linear(num_features, num_classes)
         
         self.fusion_method = fusion_method
         # Dynamically adjust the input size of the output layer based on the fusion method
@@ -192,8 +193,7 @@ class MultimodalClassifier(nn.Module):
         text_output = self.text_fc(text_output)  # [batch_size, 512]
         
         # Image processing
-        image_output = self.image_model(image)
-        image_output = self.image_fc(image_output)  # [batch_size, 512]
+        image_output = self.image_model(image) # [batch_size, 512]
         
         # Fusion
         if hasattr(self, self.fusion_method):
