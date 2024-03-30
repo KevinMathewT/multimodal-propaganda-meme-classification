@@ -198,8 +198,8 @@ class CrossModalAttention(nn.Module):
 
     def forward(self, text_features, image_features):
         # Reshape features to have batch dimension
-        text_features = text_features.unsqueeze(1)  # Shape: (batch_size, 1, feature_dim)
-        image_features = image_features.unsqueeze(1)  # Shape: (batch_size, 1, feature_dim)
+        text_features = text_features.unsqueeze(0)  # Shape: (batch_size, 1, feature_dim)
+        image_features = image_features.unsqueeze(0)  # Shape: (batch_size, 1, feature_dim)
 
         # Apply cross-attention from text to image
         attended_image_features, _ = self.text_to_image_attention(
@@ -216,8 +216,7 @@ class CrossModalAttention(nn.Module):
         )
 
         # Combine attended features
-        combined_features = (attended_text_features + attended_image_features) / 2
-        combined_features = combined_features.squeeze(1)  # Remove the added dimension
+        combined_features = (attended_text_features.sum(dim=0) + attended_image_features.sum(dim=0)) / 2
 
         return combined_features
 
