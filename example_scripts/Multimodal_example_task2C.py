@@ -185,6 +185,7 @@ class ConcatAttention(nn.Module):
         concatenated_features = torch.cat((text_features, image_features), dim=1)
         attention_weights = self.attention_layer(concatenated_features)
         attended_features = attention_weights * concatenated_features
+        print(f"Sizes: {concatenated_features.size()} | {attention_weights.size()} | {attended_features.size()} | {attended_features.sum(dim=1).size()} |")
         return attended_features.sum(dim=1)
 
 class CrossModalAttention(nn.Module):
@@ -234,7 +235,7 @@ class SelfAttentionFusion(nn.Module):
         combined_features = attended_features.sum(dim=0)  # Simple sum for demonstration
         return combined_features
 
-fusion_method = 'cross_modal'
+fusion_method = 'concatenation'
 print(f"Using Fusion: {fusion_method}")
 
 class MultimodalClassifier(nn.Module):
