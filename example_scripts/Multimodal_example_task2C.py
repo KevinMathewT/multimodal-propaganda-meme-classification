@@ -16,7 +16,7 @@ max_train_samples = None
 max_eval_samples=None
 max_predict_samples=None
 batch_size = 16
-best_accuracy = 0.0
+best_macro_f1 = 0.0
 
 import csv
 from torch.cuda.amp import autocast, GradScaler
@@ -27,6 +27,7 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from transformers import AutoTokenizer, BertTokenizer
+from sklearn.metrics import f1_score
 
 text_model = 'aubmindlab/bert-base-arabertv2'
 image_model = 'efficientnet_b4'
@@ -291,11 +292,11 @@ def train(model, train_loader, criterion, optimizer, device, epoch, scaler):
 
         # Check test accuracy at equidistant intervals
         if batch_idx % check_interval == 0 or batch_idx == total_batches:
-            dev_loss, accuracy = test(model, validation_df, criterion, device, epoch)
-            print(f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {dev_loss:.4f} | Acc: {accuracy:.4f} |")
-            global best_accuracy
-            if accuracy > best_accuracy:
-                best_accuracy = accuracy
+            test_loss, accuracy, macro_f1 = test(model, validation_df, criterion, device, epoch)
+            print(f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {test_loss:.4f} | Acc: {accuracy:.4f} | F1: {macro_f1:.4f} |")
+            global best_macro_f1
+            if macro_f1 > best_macro_f1:
+                best_macro_f1 = macro_f1
                 evaluate(model, validation_df, device)
 
     train_loss /= len(train_loader.dataset)
@@ -303,11 +304,14 @@ def train(model, train_loader, criterion, optimizer, device, epoch, scaler):
     print(f"TRAIN | Epoch [{epoch}] | Training Loss: {train_loss:.4f} | Accuracy: {accuracy:.4f} |")
     return train_loss, accuracy
 
+
 def test(model, test_loader, criterion, device, epoch):
     model.eval()
     test_loss = 0.0
     correct = 0
     total_batches = len(test_loader)
+    true_labels = []
+    predicted_labels = []
 
     with torch.no_grad():
         for batch_idx, data in enumerate(test_loader, 1):
@@ -321,14 +325,17 @@ def test(model, test_loader, criterion, device, epoch):
             test_loss += loss.item() * labels.size(0)
             _, predicted = torch.max(output, 1)
             correct += (predicted == labels).sum().item()
+            true_labels.extend(labels.cpu().numpy())
+            predicted_labels.extend(predicted.cpu().numpy())
 
             if batch_idx % 10 == 0:
                 print(f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |")
 
     test_loss /= len(test_loader.dataset)
     accuracy = correct / len(test_loader.dataset)
-    print(f" TEST | Epoch [{epoch}] | Testing Loss: {test_loss:.4f} | Accuracy: {accuracy:.4f} |")
-    return test_loss, accuracy
+    macro_f1 = f1_score(true_labels, predicted_labels, average='macro')
+    print(f" TEST | Epoch [{epoch}] | Testing Loss: {test_loss:.4f} | Accuracy: {accuracy:.4f} | Macro F1: {macro_f1:.4f} |")
+    return test_loss, accuracy, macro_f1
 
 def evaluate(model, test_loader, device):
     model.eval()
@@ -367,6 +374,6 @@ optimizer = optim.Adam(model.parameters(), lr=2e-5)
 num_epochs = 2
 for epoch in range(num_epochs):
     train_loss, acc = train(model, train_df, criterion, optimizer, device, epoch, scaler)
-    dev_loss, accuracy = test(model, validation_df, criterion, device, epoch)
-    print('  ALL | Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}'.format(epoch+1, num_epochs, train_loss, dev_loss, acc, accuracy))
+    test_loss, accuracy, macro_f1 = test(model, validation_df, criterion, device, epoch)
+    print('  ALL | Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}, F1 = {:.4f}'.format(epoch+1, num_epochs, train_loss, test_loss, acc, accuracy, macro_f1))
 
