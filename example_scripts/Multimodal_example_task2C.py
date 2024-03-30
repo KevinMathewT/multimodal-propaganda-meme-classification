@@ -237,7 +237,7 @@ class SelfAttentionFusion(nn.Module):
         combined_features = attended_features.sum(dim=0)  # Simple sum for demonstration
         return combined_features
 
-fusion_method = 'concatenation'
+fusion_method = 'self_attention'
 print(f"Using Fusion: {fusion_method}")
 
 class MultimodalClassifier(nn.Module):
