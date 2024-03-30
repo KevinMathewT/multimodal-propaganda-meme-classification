@@ -292,7 +292,7 @@ def train(model, train_loader, criterion, optimizer, device, epoch, scaler):
         # Check test accuracy at equidistant intervals
         if batch_idx % check_interval == 0 or batch_idx == total_batches:
             dev_loss, accuracy = test(model, validation_df, criterion, device, epoch)
-            print(f"| Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {dev_loss:.4f} | Acc: {accuracy:.4f} |")
+            print(f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {dev_loss:.4f} | Acc: {accuracy:.4f} |")
             global best_accuracy
             if accuracy > best_accuracy:
                 best_accuracy = accuracy
@@ -300,7 +300,7 @@ def train(model, train_loader, criterion, optimizer, device, epoch, scaler):
 
     train_loss /= len(train_loader.dataset)
     accuracy = correct / len(train_loader.dataset)
-    print(f" TEST | Epoch [{epoch}] | Training Loss: {train_loss:.4f} | Accuracy: {accuracy:.4f} |")
+    print(f"TRAIN | Epoch [{epoch}] | Training Loss: {train_loss:.4f} | Accuracy: {accuracy:.4f} |")
     return train_loss, accuracy
 
 def test(model, test_loader, criterion, device, epoch):
@@ -323,11 +323,11 @@ def test(model, test_loader, criterion, device, epoch):
             correct += (predicted == labels).sum().item()
 
             if batch_idx % 10 == 0:
-                print(f"| Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |")
+                print(f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |")
 
     test_loss /= len(test_loader.dataset)
     accuracy = correct / len(test_loader.dataset)
-    print(f"| Epoch [{epoch}] | Testing Loss: {test_loss:.4f} | Accuracy: {accuracy:.4f} |")
+    print(f" TEST | Epoch [{epoch}] | Testing Loss: {test_loss:.4f} | Accuracy: {accuracy:.4f} |")
     return test_loss, accuracy
 
 def evaluate(model, test_loader, device):
@@ -368,5 +368,5 @@ num_epochs = 2
 for epoch in range(num_epochs):
     train_loss, acc = train(model, train_df, criterion, optimizer, device, epoch, scaler)
     dev_loss, accuracy = test(model, validation_df, criterion, device, epoch)
-    print('Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}'.format(epoch+1, num_epochs, train_loss, dev_loss, acc, accuracy))
+    print('  ALL | Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}'.format(epoch+1, num_epochs, train_loss, dev_loss, acc, accuracy))
 
