@@ -178,7 +178,6 @@ class MultimodalClassifier(nn.Module):
         image_hidden_size = self.image_model.num_features
         
         # Pooling layer to reduce image dimensions
-        self.image_pool = nn.AdaptiveAvgPool2d((1, 1))  # [batch_size, num_features, 1, 1]
         self.image_fc = nn.Linear(image_hidden_size, 512)  # [batch_size, 512]
         
         self.fusion_method = fusion_method
@@ -194,8 +193,6 @@ class MultimodalClassifier(nn.Module):
         
         # Image processing
         image_output = self.image_model(image)
-        print(f"image_output dim: {image_output.size()}")
-        image_output = self.image_pool(image_output).flatten(1)
         image_output = self.image_fc(image_output)  # [batch_size, 512]
         
         # Fusion
@@ -266,7 +263,6 @@ def train(model, train_loader, criterion, optimizer, device, epoch):
         image = data["image"].to(device)
         mask = data["text_mask"].to(device)
         labels = data['label'].to(device)
-        print(f"image dim: {image.size()}")
         output = model(text, image, mask)
         loss = criterion(output, labels)
         loss.backward()
