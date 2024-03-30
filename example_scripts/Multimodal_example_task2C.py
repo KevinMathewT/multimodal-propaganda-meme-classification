@@ -18,6 +18,7 @@ max_predict_samples=None
 batch_size = 16
 
 import csv
+from torch.cuda.amp import autocast, GradScaler
 
 import numpy as np
 import torch
@@ -28,6 +29,7 @@ from transformers import AutoTokenizer, BertTokenizer
 
 text_model = 'aubmindlab/bert-base-arabertv2'
 image_model = 'efficientnet_b4'
+scaler = GradScaler()
 
 class MultimodalDataset(Dataset):
     def __init__(self, ids, text_data, image_data, labels, is_test=False):
@@ -260,28 +262,30 @@ class MultimodalClassifier(nn.Module):
         return output
 
 # Define the training and testing functions
-def train(model, train_loader, criterion, optimizer, device, epoch):
+def train(model, train_loader, criterion, optimizer, device, epoch, scaler):
     model.train()
     train_loss = 0.0
     correct = 0
     total_batches = len(train_loader)
     for batch_idx, data in enumerate(train_loader, 1):
         optimizer.zero_grad()
-        text = data["text"].to(device)
-        image = data["image"].to(device)
-        mask = data["text_mask"].to(device)
-        labels = data['label'].to(device)
-        output = model(text, image, mask)
-        loss = criterion(output, labels)
-        loss.backward()
-        optimizer.step()
+        with autocast():
+            text = data["text"].to(device)
+            image = data["image"].to(device)
+            mask = data["text_mask"].to(device)
+            labels = data['label'].to(device)
+            output = model(text, image, mask)
+            loss = criterion(output, labels)
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
         train_loss += loss.item() * labels.size(0)
         _, predicted = torch.max(output, 1)
         correct += (predicted == labels).sum().item()
-        
+
         if batch_idx % 10 == 0:
             print(f"| Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |")
-    
+
     train_loss /= len(train_loader.dataset)
     accuracy = correct / len(train_loader.dataset)
     print(f"| Epoch [{epoch}] | Training Loss: {train_loss:.4f} | Accuracy: {accuracy:.4f} |")
@@ -294,19 +298,20 @@ def test(model, test_loader, criterion, device, epoch):
     total_batches = len(test_loader)
     with torch.no_grad():
         for batch_idx, data in enumerate(test_loader, 1):
-            text = data["text"].to(device)
-            image = data["image"].to(device)
-            mask = data["text_mask"].to(device)
-            labels = data['label'].to(device)
-            output = model(text, image, mask)
-            loss = criterion(output, labels)
+            with autocast():
+                text = data["text"].to(device)
+                image = data["image"].to(device)
+                mask = data["text_mask"].to(device)
+                labels = data['label'].to(device)
+                output = model(text, image, mask)
+                loss = criterion(output, labels)
             test_loss += loss.item() * labels.size(0)
             _, predicted = torch.max(output, 1)
             correct += (predicted == labels).sum().item()
-            
+
             if batch_idx % 10 == 0:
                 print(f"| Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |")
-    
+
     test_loss /= len(test_loader.dataset)
     accuracy = correct / len(test_loader.dataset)
     print(f"| Epoch [{epoch}] | Testing Loss: {test_loss:.4f} | Accuracy: {accuracy:.4f} |")
@@ -320,12 +325,11 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=2e-5)
 
 # Train the model
-num_epochs = 5
+num_epochs = 2
 for epoch in range(num_epochs):
-    train_loss, acc = train(model, train_df, criterion, optimizer, device, epoch)
+    train_loss, acc = train(model, train_df, criterion, optimizer, device, epoch, scaler)
     dev_loss, accuracy = test(model, validation_df, criterion, device, epoch)
     print('Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}'.format(epoch+1, num_epochs, train_loss, dev_loss, acc, accuracy))
-
 
 def evaluate(model, test_loader, device):
     model.eval()
