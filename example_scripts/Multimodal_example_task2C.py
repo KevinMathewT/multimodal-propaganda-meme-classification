@@ -330,20 +330,6 @@ def test(model, test_loader, criterion, device, epoch):
     print(f"| Epoch [{epoch}] | Testing Loss: {test_loss:.4f} | Accuracy: {accuracy:.4f} |")
     return test_loss, accuracy
 
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = MultimodalClassifier(num_classes=2, fusion_method='self_attention')
-model.to(device)
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=2e-5)
-
-# Train the model
-num_epochs = 2
-for epoch in range(num_epochs):
-    train_loss, acc = train(model, train_df, criterion, optimizer, device, epoch, scaler)
-    dev_loss, accuracy = test(model, validation_df, criterion, device, epoch)
-    print('Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}'.format(epoch+1, num_epochs, train_loss, dev_loss, acc, accuracy))
-
 def evaluate(model, test_loader, device):
     model.eval()
     predictions = []
@@ -369,3 +355,18 @@ def evaluate(model, test_loader, device):
       for i, line in enumerate(predictions):
         for indx, l in enumerate(line.tolist()):
           f.write(f"{ids[i][indx]}\t{id2l[l]}\tDistilBERT+ResNet\n")
+          
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = MultimodalClassifier(num_classes=2, fusion_method='self_attention')
+model.to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=2e-5)
+
+# Train the model
+num_epochs = 2
+for epoch in range(num_epochs):
+    train_loss, acc = train(model, train_df, criterion, optimizer, device, epoch, scaler)
+    dev_loss, accuracy = test(model, validation_df, criterion, device, epoch)
+    print('Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}'.format(epoch+1, num_epochs, train_loss, dev_loss, acc, accuracy))
+
