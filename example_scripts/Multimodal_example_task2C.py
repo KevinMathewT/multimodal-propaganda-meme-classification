@@ -222,6 +222,8 @@ class SelfAttentionFusion(nn.Module):
         combined_features = attended_features.sum(dim=0)  # Simple sum for demonstration
         return combined_features
 
+fusion_method = 'cross_modal'
+
 class MultimodalClassifier(nn.Module):
     def __init__(self, num_classes, fusion_method):
         super(MultimodalClassifier, self).__init__()
@@ -379,6 +381,7 @@ def evaluate(model, test_loader, device):
 
     team_name = "kevinmathew"
     fname = f'task2C_{team_name}.tsv'
+    run_id = f'{team_name}_{image_model}_{text_model}_{fusion_method}.tsv'
 
     with open(fname, 'w') as f:
       f.write("id\tlabel\trun_id\n")
@@ -390,7 +393,7 @@ def evaluate(model, test_loader, device):
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = MultimodalClassifier(num_classes=2, fusion_method='self_attention')
+model = MultimodalClassifier(num_classes=2, fusion_method=fusion_method)
 model.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=2e-5)
