@@ -268,7 +268,7 @@ def train(model, train_loader, criterion, optimizer, device, epoch, scaler):
     correct = 0
     total_batches = len(train_loader)
     check_interval = total_batches // 10
-    
+
     for batch_idx, data in enumerate(train_loader, 1):
         optimizer.zero_grad()
         with autocast():
@@ -291,7 +291,7 @@ def train(model, train_loader, criterion, optimizer, device, epoch, scaler):
         # Check test accuracy at equidistant intervals
         if batch_idx % check_interval == 0 or batch_idx == total_batches:
             dev_loss, accuracy = test(model, validation_df, criterion, device, epoch)
-            print(f"| Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {dev_loss.item():.4f} | Acc: {accuracy} |")
+            print(f"| Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {dev_loss:.4f} | Acc: {accuracy:.4f} |")
             global best_accuracy
             if accuracy > best_accuracy:
                 best_accuracy = accuracy
