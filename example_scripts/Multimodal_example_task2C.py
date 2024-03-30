@@ -15,7 +15,7 @@ if USE_FP16:
 else:
     scaler = None
 
-learning_rate = 2e-5
+learning_rate = 2e-4
 num_train_epochs = 2
 train_max_seq_len = 512
 max_train_samples = None
