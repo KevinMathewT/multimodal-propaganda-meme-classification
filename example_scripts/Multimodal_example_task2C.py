@@ -205,7 +205,6 @@ class SelfAttentionFusion(nn.Module):
         self.attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=num_heads)
     
     def forward(self, text_features, image_features):
-        print(f"Shapes: {text_features.size()} | {image_features.size()}")
         # Concatenate features from both modalities
         features = torch.cat((text_features.unsqueeze(0), image_features.unsqueeze(0)), dim=0)
         # Apply multi-head attention
@@ -229,7 +228,7 @@ class MultimodalClassifier(nn.Module):
         # Initialize image model from a pre-trained model
         self.image_model = timm.create_model(image_model_name, pretrained=True)
         num_features = self.image_model.classifier.in_features
-        self.image_model.classifier = nn.Linear(num_features, num_classes)
+        self.image_model.classifier = nn.Linear(num_features, 512)
         
         self.fusion_method = fusion_method
         if fusion_method == 'concatenation':
