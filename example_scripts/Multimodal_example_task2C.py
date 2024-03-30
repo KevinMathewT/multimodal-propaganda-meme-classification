@@ -38,7 +38,7 @@ from transformers import get_linear_schedule_with_warmup
 
 text_model = 'aubmindlab/bert-base-arabertv2'
 # text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
-image_model = 'efficientnet_b5'
+image_model = 'resnet18d'
 
 class MultimodalDataset(Dataset):
     def __init__(self, ids, text_data, image_data, labels, is_test=False):
