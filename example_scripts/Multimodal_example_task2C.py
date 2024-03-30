@@ -16,7 +16,7 @@ if USE_FP16:
 else:
     scaler = None
 
-learning_rate = 5e-4
+learning_rate = 5e-3
 num_train_epochs = 5
 train_max_seq_len = 512
 max_train_samples = None
@@ -270,6 +270,27 @@ class MultimodalClassifier(nn.Module):
         fusion_output_size = 512 if fusion_method in ['concatenation', 'cross_modal', 'self_attention'] else 512
         self.output_fc = nn.Linear(fusion_output_size, num_classes)
     
+    def get_params(self, lr):
+        attention_params = []
+        text_model_params = []
+        image_model_params = []
+        
+        for name, param in self.named_parameters():
+            if 'fusion_layer' in name:
+                attention_params.append(param)
+            elif 'text_model' in name:
+                text_model_params.append(param)
+            elif 'image_model' in name:
+                image_model_params.append(param)
+            else:
+                attention_params.append(param)
+        
+        return [
+            {"params": attention_params, "lr": lr},
+            {"params": text_model_params, "lr": lr / 10},
+            {"params": image_model_params, "lr": lr / 10}
+        ]
+    
     def forward(self, text, image, mask):
         text_output = self.text_model(text, attention_mask=mask).last_hidden_state
         text_output = self.text_dropout(text_output[:, 0, :])
@@ -415,7 +436,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = MultimodalClassifier(num_classes=2, fusion_method=fusion_method)
 model.to(device)
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=2e-5)
+optimizer = optim.Adam(model.get_params(learning_rate))
 num_epochs = 5
 total_steps = len(train_df) * num_epochs
 warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
