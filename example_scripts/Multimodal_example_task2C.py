@@ -22,7 +22,7 @@ train_max_seq_len = 512
 max_train_samples = None
 max_eval_samples = None
 max_predict_samples = None
-batch_size = 32
+batch_size = 16
 best_macro_f1 = 0.0
 
 import csv
