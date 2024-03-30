@@ -287,7 +287,7 @@ def train(model, train_loader, criterion, optimizer, device, epoch, scaler):
         correct += (predicted == labels).sum().item()
 
         if batch_idx % 10 == 0:
-            print(f"| Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |")
+            print(f"TRAIN | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |")
 
         # Check test accuracy at equidistant intervals
         if batch_idx % check_interval == 0 or batch_idx == total_batches:
@@ -300,7 +300,7 @@ def train(model, train_loader, criterion, optimizer, device, epoch, scaler):
 
     train_loss /= len(train_loader.dataset)
     accuracy = correct / len(train_loader.dataset)
-    print(f"| Epoch [{epoch}] | Training Loss: {train_loss:.4f} | Accuracy: {accuracy:.4f} |")
+    print(f" TEST | Epoch [{epoch}] | Training Loss: {train_loss:.4f} | Accuracy: {accuracy:.4f} |")
     return train_loss, accuracy
 
 def test(model, test_loader, criterion, device, epoch):
@@ -355,7 +355,7 @@ def evaluate(model, test_loader, device):
       for i, line in enumerate(predictions):
         for indx, l in enumerate(line.tolist()):
           f.write(f"{ids[i][indx]}\t{id2l[l]}\tDistilBERT+ResNet\n")
-          
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = MultimodalClassifier(num_classes=2, fusion_method='self_attention')
