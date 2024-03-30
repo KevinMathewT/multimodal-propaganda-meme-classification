@@ -36,7 +36,8 @@ from transformers import AutoTokenizer, BertTokenizer
 from sklearn.metrics import f1_score
 from transformers import get_linear_schedule_with_warmup
 
-text_model = 'aubmindlab/bert-base-arabertv2'
+# text_model = 'aubmindlab/bert-base-arabertv2'
+text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
 image_model = 'efficientnet_b4'
 
 class MultimodalDataset(Dataset):
