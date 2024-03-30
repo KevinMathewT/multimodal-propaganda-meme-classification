@@ -314,7 +314,7 @@ def test(model, test_loader, criterion, device, epoch):
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = MultimodalClassifier(num_classes=2, fusion_method='attention_fusion')
+model = MultimodalClassifier(num_classes=2, fusion_method='self_attention')
 model.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=2e-5)
