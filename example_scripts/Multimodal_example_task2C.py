@@ -191,37 +191,35 @@ class ConcatAttention(nn.Module):
         return attended_features
 
 class CrossModalAttention(nn.Module):
-    def __init__(self, feature_dim):
+    def __init__(self, feature_dim, num_heads=1):
         super(CrossModalAttention, self).__init__()
-        self.ttoi_attention_layer = nn.Sequential(
-            nn.Linear(feature_dim, feature_dim),
-            nn.Tanh(),
-            nn.Linear(feature_dim, 1),
-            nn.Softmax(dim=1)
-        )
-        self.itot_attention_layer = nn.Sequential(
-            nn.Linear(feature_dim, feature_dim),
-            nn.Tanh(),
-            nn.Linear(feature_dim, 1),
-            nn.Softmax(dim=1)
-        )
-    
+        self.text_to_image_attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=num_heads)
+        self.image_to_text_attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=num_heads)
+
     def forward(self, text_features, image_features):
-        print(f"Shapes: {text_features.size()} | {image_features.size()}")
-        # Text-to-Image Attention
-        text_att = self.ttoi_attention_layer(text_features)
-        attended_i_features = text_att * image_features
+        # Reshape features to have batch dimension
+        text_features = text_features.unsqueeze(1)  # Shape: (batch_size, 1, feature_dim)
+        image_features = image_features.unsqueeze(1)  # Shape: (batch_size, 1, feature_dim)
 
-        print(f"Sizes: {text_att.size()} | {text_features.size()} | {image_features.size()} | {attended_i_features.size()} |")
-        
-        # Image-to-Text Attention
-        image_att = self.itot_attention_layer(image_features)
-        attended_t_features = image_att * text_features
+        # Apply cross-attention from text to image
+        attended_image_features, _ = self.text_to_image_attention(
+            query=text_features,
+            key=image_features,
+            value=image_features
+        )
 
-        print(f"Sizes: {image_att.size()} | {text_features.size()} | {image_features.size()} | {attended_t_features.size()} |")
-        print(f"Sizes: {attended_i_features.size()} | {attended_t_features.size()} | {(attended_i_features + attended_t_features).size()} | {(attended_i_features + attended_t_features).sum(dim=1).size()} |")
-        
-        return (attended_i_features + attended_t_features).sum(dim=1)
+        # Apply cross-attention from image to text
+        attended_text_features, _ = self.image_to_text_attention(
+            query=image_features,
+            key=text_features,
+            value=text_features
+        )
+
+        # Combine attended features
+        combined_features = (attended_text_features + attended_image_features) / 2
+        combined_features = combined_features.squeeze(1)  # Remove the added dimension
+
+        return combined_features
 
 class SelfAttentionFusion(nn.Module):
     def __init__(self, feature_dim, num_heads=1):
@@ -237,7 +235,7 @@ class SelfAttentionFusion(nn.Module):
         combined_features = attended_features.sum(dim=0)  # Simple sum for demonstration
         return combined_features
 
-fusion_method = 'self_attention'
+fusion_method = 'cross_modal'
 print(f"Using Fusion: {fusion_method}")
 
 class MultimodalClassifier(nn.Module):
