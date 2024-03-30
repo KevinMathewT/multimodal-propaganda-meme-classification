@@ -15,7 +15,7 @@ if USE_FP16:
 else:
     scaler = None
 
-learning_rate = 2e-4
+learning_rate = 5e-4
 num_train_epochs = 5
 train_max_seq_len = 512
 max_train_samples = None
@@ -34,6 +34,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from transformers import AutoTokenizer, BertTokenizer
 from sklearn.metrics import f1_score
+from transformers import get_linear_schedule_with_warmup
 
 text_model = 'aubmindlab/bert-base-arabertv2'
 image_model = 'efficientnet_b4'
@@ -284,9 +285,10 @@ class MultimodalClassifier(nn.Module):
         output = self.output_fc(fused_output)
         
         return output
+    
 
 # Define the training and testing functions
-def train(model, train_loader, criterion, optimizer, device, epoch, scaler=None):
+def train(model, train_loader, criterion, optimizer,  scheduler, device, epoch, scaler=None):
     model.train()
     train_loss = 0.0
     correct = 0
@@ -316,12 +318,14 @@ def train(model, train_loader, criterion, optimizer, device, epoch, scaler=None)
             loss.backward()
             optimizer.step()
         
+        scheduler.step()
         train_loss += loss.item() * labels.size(0)
         _, predicted = torch.max(output, 1)
         correct += (predicted == labels).sum().item()
 
         if batch_idx % 10 == 0:
-            print(f"TRAIN | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |")
+            current_lr = scheduler.get_last_lr()[0]  # Get the current learning rate
+            print(f"TRAIN | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} | LR: {current_lr:.4f} |")
 
         # Check test accuracy at equidistant intervals
         if batch_idx % check_interval == 0 or batch_idx == total_batches:
@@ -412,11 +416,14 @@ model = MultimodalClassifier(num_classes=2, fusion_method=fusion_method)
 model.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=2e-5)
+num_epochs = 2
+total_steps = len(train_df) * num_epochs
+warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
 
 # Train the model
-num_epochs = 2
 for epoch in range(num_epochs):
-    train_loss, acc = train(model, train_df, criterion, optimizer, device, epoch, scaler)
+    train_loss, acc = train(model, train_df, criterion, optimizer, scheduler, device, epoch, scaler)
     test_loss, accuracy, macro_f1 = test(model, validation_df, criterion, device, epoch)
     print('  ALL | Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}, F1 = {:.4f}'.format(epoch+1, num_epochs, train_loss, test_loss, acc, accuracy, macro_f1))
 
