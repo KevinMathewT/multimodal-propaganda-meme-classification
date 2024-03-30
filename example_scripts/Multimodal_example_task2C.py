@@ -26,8 +26,8 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from transformers import AutoTokenizer, BertTokenizer
 
-text_model = 'distilbert-base-multilingual-cased'
-image_model = ''
+text_model = 'aubmindlab/bert-base-arabertv2'
+image_model = 'efficientnet_b4'
 
 class MultimodalDataset(Dataset):
     def __init__(self, ids, text_data, image_data, labels, is_test=False):
@@ -80,6 +80,7 @@ validation_file = 'arabic_memes_propaganda_araieval_24_dev.json'
 # test_file = 'arabic_memes_propaganda_araieval_24_test.json'
 
 text_model_name = text_model
+image_model_name = image_model
 
 import json
 
@@ -128,8 +129,6 @@ if max_train_samples is not None:
     max_train_samples_n = min(len(train_df), max_train_samples)
     train_df = train_df.select(range(max_train_samples_n))
 
-train_df
-
 
 if max_eval_samples is not None:
     max_eval_samples_n = min(len(validation_df), max_eval_samples)
@@ -151,57 +150,94 @@ validation_df = torch.utils.data.DataLoader(validation_df, batch_size=8, shuffle
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torchvision.models as models
+import timm
 from transformers import AutoModel, BertModel
 
 
 # Define the multimodal classification model
+# Define the multimodal classification model
 class MultimodalClassifier(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, fusion_method):
         super(MultimodalClassifier, self).__init__()
-
-        # BERT model for text input
-        #config = AutoConfig.from_pretrained('xlm-roberta-xlarge', num_labels=2,use_auth_token=None)
-        self.bert = AutoModel.from_pretrained(text_model_name)
-
-        self.bert_drop = nn.Dropout(0.3)
-        self.bert_fc = nn.Linear(768, 512) #for BERT=768
-
-        # ResNet model for image input
-        self.resnet = models.resnet50(pretrained=True)
-        self.resnet_fc = nn.Linear(1000, 512)
-
-        # Fusion layer
-        self.fusion_fc = nn.Linear(1024, 512)
+        
+        # Text model (e.g., BERT, RoBERTa, XLNet)
+        self.text_model = AutoModel.from_pretrained(text_model_name)
+        self.text_dropout = nn.Dropout(0.3)
+        self.text_fc = nn.Linear(self.text_model.config.hidden_size, 512)
+        
+        # Image model (from timm library)
+        self.image_model = timm.create_model(image_model_name, pretrained=True)
+        self.image_fc = nn.Linear(self.image_model.num_features, 512)
+        
+        # Fusion method
+        self.fusion_method = fusion_method
+        
         # Output layer
         self.output_fc = nn.Linear(512, num_classes)
-
+    
     def forward(self, text, image, mask):
-        #image = image.unsqueeze(0)
-        # Text input through BERT model
-        bert_output = self.bert(text, attention_mask=mask, return_dict=False) #attention_mask=mask,
-        #bert_output = self.bert(text, attention_mask=mask, return_dict=False) #attention_mask=mask,
-        #print(bert_output)
-        bert_output = self.bert_drop(bert_output[0][:, -1, :])
-        bert_output = self.bert_fc(bert_output)
-
-
-        # Image input through ResNet model
-        resnet_output = self.resnet(image)
-        resnet_output = self.resnet_fc(resnet_output)
-
-        # Concatenate the text and image features
-        # bert_output = bert_output.squeeze(2)
-        # print(bert_output.shape)
-        # print(resnet_output.shape)
-        features = torch.cat((bert_output, resnet_output), dim=1)
-
+        # Text input through the text model
+        text_output = self.text_model(text, attention_mask=mask, return_dict=False)
+        text_output = self.text_dropout(text_output[0][:, 0, :])
+        text_output = self.text_fc(text_output)
+        
+        # Image input through the image model
+        image_output = self.image_model(image)
+        image_output = self.image_fc(image_output)
+        
         # Fusion layer
-        features = self.fusion_fc(features)
+        fused_output = self.fusion_method(text_output, image_output)
+        
         # Output layer
-        output = self.output_fc(features)
-
+        output = self.output_fc(fused_output)
+        
         return output
+
+# Fusion methods
+
+def concatenation(text_features, image_features):
+    return torch.cat((text_features, image_features), dim=1)
+
+def addition(text_features, image_features):
+    return text_features + image_features
+
+def subtraction(text_features, image_features):
+    return text_features - image_features
+
+def multiplication(text_features, image_features):
+    return text_features * image_features
+
+def attention_fusion(text_features, image_features):
+    # Compute attention weights
+    attention_weights = torch.matmul(text_features, image_features.transpose(1, 2))
+    attention_weights = torch.softmax(attention_weights, dim=2)
+    
+    # Attend to image features
+    attended_image_features = torch.matmul(attention_weights, image_features)
+    
+    # Concatenate attended image features with text features
+    fused_features = torch.cat((text_features, attended_image_features), dim=1)
+    
+    return fused_features
+
+def bilinear_fusion(text_features, image_features):
+    # Compute bilinear interaction
+    bilinear_interaction = torch.matmul(text_features, image_features.transpose(1, 2))
+    bilinear_interaction = torch.flatten(bilinear_interaction, start_dim=1)
+    
+    return bilinear_interaction
+
+def gated_fusion(text_features, image_features):
+    # Compute gate weights
+    gate_weights = torch.sigmoid(torch.matmul(text_features, image_features.transpose(1, 2)))
+    
+    # Apply gate to image features
+    gated_image_features = gate_weights * image_features
+    
+    # Concatenate gated image features with text features
+    fused_features = torch.cat((text_features, gated_image_features), dim=1)
+    
+    return fused_features
 
 # Define the training and testing functions
 def train(model, train_loader, criterion, optimizer, device):
@@ -250,7 +286,7 @@ def test(model, test_loader, criterion, device):
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = MultimodalClassifier(num_classes=2)
+model = MultimodalClassifier(num_classes=2, fusion_method=attention_fusion)
 model.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=2e-5)
@@ -278,7 +314,10 @@ def evaluate(model, test_loader, device):
             predictions.append(predicted)
             ids.append(data["id"])
 
-    with open(f'task2C_TeamName.tsv', 'w') as f:
+    team_name = "kevinmathew"
+    fname = f'task2C_{team_name}.tsv'
+
+    with open(fname, 'w') as f:
       f.write("id\tlabel\trun_id\n")
       indx = 0
       id2l = {0:'not_propaganda', 1:'propaganda'}

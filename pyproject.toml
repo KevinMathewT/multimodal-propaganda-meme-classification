@@ -19,6 +19,7 @@ nbconvert = "^7.16.3"
 datasets = "^2.18.0"
 pandas = "^2.2.1"
 evaluate = "^0.4.1"
+timm = "^0.9.16"
 
 
 [build-system]

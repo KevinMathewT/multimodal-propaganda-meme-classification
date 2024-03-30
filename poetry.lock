@@ -2401,6 +2401,25 @@ files = [
 ]
 
 [[package]]
+name = "timm"
+version = "0.9.16"
+description = "PyTorch Image Models"
+category = "main"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "timm-0.9.16-py3-none-any.whl", hash = "sha256:bf5704014476ab011589d3c14172ee4c901fd18f9110a928019cac5be2945914"},
+    {file = "timm-0.9.16.tar.gz", hash = "sha256:891e54f375d55adf31a71ab0c117761f0e472f9f3971858ecdd1e7376b7071e6"},
+]
+
+[package.dependencies]
+huggingface_hub = "*"
+pyyaml = "*"
+safetensors = "*"
+torch = "*"
+torchvision = "*"
+
+[[package]]
 name = "tinycss2"
 version = "1.2.1"
 description = "A tiny CSS parser"
@@ -3079,4 +3098,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "e6bfd37ea8a7f3a4685d4771fd0d1d75a01aa38d7c14da4ce0d902d0d3006800"
+content-hash = "2c2bc145cdf599d10ef2714b93fcfa253aa8f075e1cc1add2cc75d96e3456172"
