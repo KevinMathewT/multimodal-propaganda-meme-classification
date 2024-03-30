@@ -205,6 +205,7 @@ class SelfAttentionFusion(nn.Module):
         self.attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=num_heads)
     
     def forward(self, text_features, image_features):
+        print(f"Shapes: {text_features.size()} | {image_features.size()}")
         # Concatenate features from both modalities
         features = torch.cat((text_features.unsqueeze(0), image_features.unsqueeze(0)), dim=0)
         # Apply multi-head attention
