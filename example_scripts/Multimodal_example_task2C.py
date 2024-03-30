@@ -8,6 +8,7 @@
 # !pip install datasets
 # !pip install evaluate
 # !pip install --upgrade accelerate
+from torch.cuda.amp import autocast, GradScaler
 
 USE_FP16 = True  # Set to False for normal training
 if USE_FP16:
@@ -25,7 +26,6 @@ batch_size = 32
 best_macro_f1 = 0.0
 
 import csv
-from torch.cuda.amp import autocast, GradScaler
 
 import numpy as np
 import torch
