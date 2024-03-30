@@ -315,6 +315,7 @@ def train(model, train_loader, criterion, optimizer,  scheduler, device, epoch, 
     correct = 0
     total_batches = len(train_loader)
     check_interval = total_batches // 10
+    batch_losses = []
 
     for batch_idx, data in enumerate(train_loader, 1):
         optimizer.zero_grad()
@@ -341,12 +342,15 @@ def train(model, train_loader, criterion, optimizer,  scheduler, device, epoch, 
         
         scheduler.step()
         train_loss += loss.item() * labels.size(0)
+        batch_losses.append(loss.item())  # Append the loss for the current batch
         _, predicted = torch.max(output, 1)
         correct += (predicted == labels).sum().item()
 
         if batch_idx % 10 == 0:
             current_lr = scheduler.get_last_lr()[0]  # Get the current learning rate
-            print(f"TRAIN | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} | LR: {current_lr} |")
+            avg_loss = sum(batch_losses) / len(batch_losses)  # Calculate the average loss
+            print(f"TRAIN | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {avg_loss.item():.4f} | LR: {current_lr} |")
+            batch_losses = []  # Reset the batch losses for the next 10 steps
 
         # Check test accuracy at equidistant intervals
         if batch_idx % check_interval == 0 or batch_idx == total_batches:
