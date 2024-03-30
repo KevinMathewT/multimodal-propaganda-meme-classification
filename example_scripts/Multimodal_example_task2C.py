@@ -349,7 +349,7 @@ def train(model, train_loader, criterion, optimizer,  scheduler, device, epoch, 
         if batch_idx % 10 == 0:
             current_lr = scheduler.get_last_lr()[0]  # Get the current learning rate
             avg_loss = sum(batch_losses) / len(batch_losses)  # Calculate the average loss
-            print(f"TRAIN | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {avg_loss.item():.4f} | LR: {current_lr} |")
+            print(f"TRAIN | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {avg_loss:.4f} | LR: {current_lr} |")
             batch_losses = []  # Reset the batch losses for the next 10 steps
 
         # Check test accuracy at equidistant intervals
