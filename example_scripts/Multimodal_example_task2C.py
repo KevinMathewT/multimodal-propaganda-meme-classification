@@ -39,7 +39,7 @@ from transformers import get_linear_schedule_with_warmup
 text_model = 'aubmindlab/bert-base-arabertv2'
 # text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
 # image_model = 'efficientnet_b5'
-image_model = 'resnet18d'
+image_model = 'resnet50'
 print(f"Image Model: {image_model} | Text Model: {text_model}")
 
 class MultimodalDataset(Dataset):
@@ -254,9 +254,9 @@ class MultimodalClassifier(nn.Module):
         
         # Initialize image model from a pre-trained model
         self.image_model = timm.create_model(image_model_name, pretrained=True)
-        print(f"in features before: {self.image_model.get_classifier().in_features}")
-        self.image_model.classifier = nn.Linear(self.image_model.get_classifier().in_features, 512)
-        print(f"in features before: {self.image_model.get_classifier().in_features}")
+        print(f"in features before: {self.image_model.fc.in_features}")
+        self.image_model.fc = nn.Linear(self.image_model.fc.in_features, 512)
+        print(f"in features before: {self.image_model.fc.in_features}")
         
         self.fusion_method = fusion_method
         if fusion_method == 'concatenation':
