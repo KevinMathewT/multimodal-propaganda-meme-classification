@@ -9,14 +9,14 @@
 # !pip install evaluate
 # !pip install --upgrade accelerate
 
-USE_FP16 = False  # Set to False for normal training
+USE_FP16 = True  # Set to False for normal training
 if USE_FP16:
     scaler = GradScaler()
 else:
     scaler = None
 
 learning_rate = 2e-4
-num_train_epochs = 2
+num_train_epochs = 5
 train_max_seq_len = 512
 max_train_samples = None
 max_eval_samples = None
