@@ -207,19 +207,19 @@ class MultimodalClassifier(nn.Module):
         return output
 
     # Fusion methods
-    def concatenation(text_features, image_features):
+    def concatenation(self, text_features, image_features):
         return torch.cat((text_features, image_features), dim=1)  # Output: (batch_size, 1024)
 
-    def addition(text_features, image_features):
+    def addition(self, text_features, image_features):
         return text_features + image_features  # Output: (batch_size, 512)
 
-    def subtraction(text_features, image_features):
+    def subtraction(self, text_features, image_features):
         return text_features - image_features  # Output: (batch_size, 512)
 
-    def multiplication(text_features, image_features):
+    def multiplication(self, text_features, image_features):
         return text_features * image_features  # Output: (batch_size, 512)
 
-    def attention_fusion(text_features, image_features):
+    def attention_fusion(self, text_features, image_features):
         # Compute attention weights
         attention_weights = torch.matmul(text_features, image_features.transpose(1, 2))  # Output: (batch_size, 512, 512)
         attention_weights = torch.softmax(attention_weights, dim=2)  # Output: (batch_size, 512, 512)
@@ -232,14 +232,14 @@ class MultimodalClassifier(nn.Module):
         
         return fused_features
 
-    def bilinear_fusion(text_features, image_features):
+    def bilinear_fusion(self, text_features, image_features):
         # Compute bilinear interaction
         bilinear_interaction = torch.matmul(text_features, image_features.transpose(1, 2))  # Output: (batch_size, 512, 512)
         bilinear_interaction = torch.flatten(bilinear_interaction, start_dim=1)  # Output: (batch_size, 512*512)
         
         return bilinear_interaction
 
-    def gated_fusion(text_features, image_features):
+    def gated_fusion(self, text_features, image_features):
         # Compute gate weights
         gate_weights = torch.sigmoid(torch.matmul(text_features, image_features.transpose(1, 2)))  # Output: (batch_size, 512, 512)
         
