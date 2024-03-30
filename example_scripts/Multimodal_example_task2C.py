@@ -194,6 +194,7 @@ class CrossModalAttention(nn.Module):
         self.image_to_text_attention = nn.Linear(feature_dim, feature_dim)
     
     def forward(self, text_features, image_features):
+        print(f"Shapes: {text_features.size()} | {image_features.size()}")
         # Text-to-Image Attention
         text_att = self.text_to_image_attention(text_features)
         text_att = torch.bmm(text_att.unsqueeze(1), image_features.unsqueeze(2))
