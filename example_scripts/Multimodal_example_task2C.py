@@ -190,25 +190,30 @@ class ConcatAttention(nn.Module):
 class CrossModalAttention(nn.Module):
     def __init__(self, feature_dim):
         super(CrossModalAttention, self).__init__()
-        self.text_to_image_attention = nn.Linear(feature_dim, feature_dim)
-        self.image_to_text_attention = nn.Linear(feature_dim, feature_dim)
+        self.ttoi_attention_layer = nn.Sequential(
+            nn.Linear(feature_dim, feature_dim),
+            nn.Tanh(),
+            nn.Linear(feature_dim, 1),
+            nn.Softmax(dim=1)
+        )
+        self.itot_attention_layer = nn.Sequential(
+            nn.Linear(feature_dim, feature_dim),
+            nn.Tanh(),
+            nn.Linear(feature_dim, 1),
+            nn.Softmax(dim=1)
+        )
     
     def forward(self, text_features, image_features):
         print(f"Shapes: {text_features.size()} | {image_features.size()}")
         # Text-to-Image Attention
-        text_att = self.text_to_image_attention(text_features)
-        text_att = torch.bmm(text_att.unsqueeze(1), image_features.unsqueeze(2))
-        text_att = F.softmax(text_att, dim=-1)
+        text_att = self.ttoi_attention_layer(text_features)
+        attended_i_features = text_att * image_features
         
         # Image-to-Text Attention
-        image_att = self.image_to_text_attention(image_features)
-        image_att = torch.bmm(image_att.unsqueeze(1), text_features.unsqueeze(2))
-        image_att = F.softmax(image_att, dim=-1)
+        image_att = self.itot_attention_layer(image_features)
+        attended_t_features = image_att * text_features
         
-        attended_text = text_att * text_features
-        attended_image = image_att * image_features
-        
-        return attended_text + attended_image
+        return (attended_i_features + attended_t_features).sum(dim=1)
 
 class SelfAttentionFusion(nn.Module):
     def __init__(self, feature_dim, num_heads=1):
