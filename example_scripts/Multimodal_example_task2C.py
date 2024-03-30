@@ -9,13 +9,19 @@
 # !pip install evaluate
 # !pip install --upgrade accelerate
 
-learning_rate=2e-5
-num_train_epochs=2
+USE_FP16 = False  # Set to False for normal training
+if USE_FP16:
+    scaler = GradScaler()
+else:
+    scaler = None
+
+learning_rate = 2e-5
+num_train_epochs = 2
 train_max_seq_len = 512
 max_train_samples = None
-max_eval_samples=None
-max_predict_samples=None
-batch_size = 16
+max_eval_samples = None
+max_predict_samples = None
+batch_size = 32
 best_macro_f1 = 0.0
 
 import csv
@@ -31,7 +37,6 @@ from sklearn.metrics import f1_score
 
 text_model = 'aubmindlab/bert-base-arabertv2'
 image_model = 'efficientnet_b4'
-scaler = GradScaler()
 
 class MultimodalDataset(Dataset):
     def __init__(self, ids, text_data, image_data, labels, is_test=False):
@@ -264,7 +269,7 @@ class MultimodalClassifier(nn.Module):
         return output
 
 # Define the training and testing functions
-def train(model, train_loader, criterion, optimizer, device, epoch, scaler):
+def train(model, train_loader, criterion, optimizer, device, epoch, scaler=None):
     model.train()
     train_loss = 0.0
     correct = 0
@@ -273,16 +278,27 @@ def train(model, train_loader, criterion, optimizer, device, epoch, scaler):
 
     for batch_idx, data in enumerate(train_loader, 1):
         optimizer.zero_grad()
-        with autocast():
+        if USE_FP16:
+            with autocast():
+                text = data["text"].to(device)
+                image = data["image"].to(device)
+                mask = data["text_mask"].to(device)
+                labels = data['label'].to(device)
+                output = model(text, image, mask)
+                loss = criterion(output, labels)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
             text = data["text"].to(device)
             image = data["image"].to(device)
             mask = data["text_mask"].to(device)
             labels = data['label'].to(device)
             output = model(text, image, mask)
             loss = criterion(output, labels)
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+            loss.backward()
+            optimizer.step()
+        
         train_loss += loss.item() * labels.size(0)
         _, predicted = torch.max(output, 1)
         correct += (predicted == labels).sum().item()
@@ -315,13 +331,22 @@ def test(model, test_loader, criterion, device, epoch):
 
     with torch.no_grad():
         for batch_idx, data in enumerate(test_loader, 1):
-            with autocast():
+            if USE_FP16:
+                with autocast():
+                    text = data["text"].to(device)
+                    image = data["image"].to(device)
+                    mask = data["text_mask"].to(device)
+                    labels = data['label'].to(device)
+                    output = model(text, image, mask)
+                    loss = criterion(output, labels)
+            else:
                 text = data["text"].to(device)
                 image = data["image"].to(device)
                 mask = data["text_mask"].to(device)
                 labels = data['label'].to(device)
                 output = model(text, image, mask)
                 loss = criterion(output, labels)
+            
             test_loss += loss.item() * labels.size(0)
             _, predicted = torch.max(output, 1)
             correct += (predicted == labels).sum().item()
