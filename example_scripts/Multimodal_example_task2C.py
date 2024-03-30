@@ -296,6 +296,8 @@ def test(model, test_loader, criterion, device, epoch):
     test_loss = 0.0
     correct = 0
     total_batches = len(test_loader)
+    check_interval = total_batches // 10
+
     with torch.no_grad():
         for batch_idx, data in enumerate(test_loader, 1):
             with autocast():
@@ -311,6 +313,15 @@ def test(model, test_loader, criterion, device, epoch):
 
             if batch_idx % 10 == 0:
                 print(f"| Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |")
+
+            # Check test accuracy at equidistant intervals
+            if batch_idx % check_interval == 0 or batch_idx == total_batches:
+                dev_loss, accuracy = test(model, validation_df, criterion, device, epoch)
+                print(f"| Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {dev_loss.item():.4f} | Acc: {accuracy} |")
+                global best_accuracy
+                if accuracy > best_accuracy:
+                    best_accuracy = accuracy
+                    evaluate(model, validation_df, device)
 
     test_loss /= len(test_loader.dataset)
     accuracy = correct / len(test_loader.dataset)
@@ -356,7 +367,3 @@ def evaluate(model, test_loader, device):
       for i, line in enumerate(predictions):
         for indx, l in enumerate(line.tolist()):
           f.write(f"{ids[i][indx]}\t{id2l[l]}\tDistilBERT+ResNet\n")
-
-evaluate(model, validation_df, device)
-
-
