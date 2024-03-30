@@ -175,16 +175,17 @@ class ConcatAttention(nn.Module):
     def __init__(self, input_dim, attention_dim):
         super(ConcatAttention, self).__init__()
         self.attention_layer = nn.Sequential(
-            nn.Linear(input_dim, attention_dim),
-            nn.Tanh(),
-            nn.Linear(attention_dim, input_dim),
+            nn.Linear(input_dim, input_dim),
             nn.Softmax(dim=1)
         )
+
+        self.reduce = nn.Linear(input_dim, attention_dim)
     
     def forward(self, text_features, image_features):
         concatenated_features = torch.cat((text_features, image_features), dim=1)
         attention_weights = self.attention_layer(concatenated_features)
         attended_features = attention_weights * concatenated_features
+        attended_features = self.reduce(attended_features)
         # print(f"Sizes: {concatenated_features.size()} | {attention_weights.size()} | {attended_features.size()} | {attended_features.sum(dim=1).size()} |")
         return attended_features
 
