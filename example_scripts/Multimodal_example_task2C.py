@@ -179,7 +179,7 @@ class MultimodalClassifier(nn.Module):
         
         # Pooling layer to reduce image dimensions
         num_features = self.image_model.classifier.in_features
-        self.model.classifier = nn.Linear(num_features, num_classes)
+        self.image_model.classifier = nn.Linear(num_features, num_classes)
         
         self.fusion_method = fusion_method
         # Dynamically adjust the input size of the output layer based on the fusion method
