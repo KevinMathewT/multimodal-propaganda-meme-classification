@@ -254,7 +254,7 @@ class MultimodalClassifier(nn.Module):
         
         # Initialize image model from a pre-trained model
         self.image_model = timm.create_model(image_model_name, pretrained=True)
-        num_features = self.image_model.classifier.in_features
+        num_features = self.image_model.get_classifier().in_features
         self.image_model.classifier = nn.Linear(num_features, 512)
         
         self.fusion_method = fusion_method
