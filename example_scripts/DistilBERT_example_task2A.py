@@ -224,10 +224,12 @@ if max_eval_samples is not None:
 
 if "test" not in raw_datasets and "test_matched" not in raw_datasets:
     raise ValueError("requires a test dataset")
-predict_dataset = raw_datasets["test"]
-if max_predict_samples is not None:
-    max_predict_samples_n = min(len(predict_dataset), max_predict_samples)
-    predict_dataset = predict_dataset.select(range(max_predict_samples_n))
+# predict_dataset = raw_datasets["test"]
+# if max_predict_samples is not None:
+#     max_predict_samples_n = min(len(predict_dataset), max_predict_samples)
+#     predict_dataset = predict_dataset.select(range(max_predict_samples_n))
+
+predict_dataset = eval_dataset
 
 for index in random.sample(range(len(train_dataset)), 3):
     logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
@@ -283,12 +285,12 @@ predict_dataset = eval_dataset
 
 id2l = {0:'not_propaganda', 1:'propaganda'}
 logger.info("*** Predict ***")
-#predict_dataset = predict_dataset.remove_columns("label")
+# predict_dataset = predict_dataset.remove_columns("label")
 ids = predict_dataset['id']
 predict_dataset = predict_dataset.remove_columns("id")
 predictions = trainer.predict(predict_dataset, metric_key_prefix="predict").predictions
 predictions = np.argmax(predictions, axis=1)
-output_predict_file = os.path.join(training_args.output_dir, f"task2A_TeamName.tsv")
+output_predict_file = os.path.join(training_args.output_dir, f"task2A_kevinmathew.tsv")
 if trainer.is_world_process_zero():
     with open(output_predict_file, "w") as writer:
         logger.info(f"***** Predict results *****")
