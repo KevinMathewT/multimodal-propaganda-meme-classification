@@ -306,9 +306,9 @@ optimizer = optim.Adam(model.parameters(), lr=2e-5)
 # Train the model
 num_epochs = 5
 for epoch in range(num_epochs):
-    train_loss, acc = train(model, train_df, criterion, optimizer, device)
-    #dev_loss, accuracy = test(model, eval_dataset, criterion, device)
-    print('Epoch {}/{}: Train Loss = {:.4f}, Accuracy = {:.4f}'.format(epoch+1, num_epochs, train_loss, acc))
+    train_loss, acc = train(model, train_df, criterion, optimizer, device, epoch)
+    dev_loss, accuracy = test(model, validation_df, criterion, device, epoch)
+    print('Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}'.format(epoch+1, num_epochs, train_loss, dev_loss, acc, accuracy))
 
 
 def evaluate(model, test_loader, device):
