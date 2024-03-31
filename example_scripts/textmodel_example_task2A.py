@@ -292,7 +292,14 @@ def train(
                 text = data["text"].to(device)
                 mask = data["text_mask"].to(device)
                 labels = data["label"].to(device)
-                output = model(text, mask)
+                try:
+                    output = model(text, mask)
+                except RuntimeError as e:
+                    print("Error occurred during forward pass:")
+                    print("Input data:", data)
+                    print("Token IDs:", text)
+                    print("Embedding weights shape:", model.model.embeddings.word_embeddings.weight.shape)
+                    raise e
                 loss = criterion(output, labels)
             scaler.scale(loss).backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
@@ -304,7 +311,14 @@ def train(
             text = data["text"].to(device)
             mask = data["text_mask"].to(device)
             labels = data["label"].to(device)
-            output = model(text, mask)
+            try:
+                output = model(text, mask)
+            except RuntimeError as e:
+                print("Error occurred during forward pass:")
+                print("Input data:", data)
+                print("Token IDs:", text)
+                print("Embedding weights shape:", model.model.embeddings.word_embeddings.weight.shape)
+                raise e
             loss = criterion(output, labels)
             loss.backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
