@@ -408,7 +408,7 @@ def evaluate(model, test_loader, device):
             ids.append(data["id"])
 
     team_name = "kevinmathew"
-    fname = f"task2C_{team_name}.tsv"
+    fname = f"task2A_{team_name}.tsv"
     run_id = f"{team_name}_{text_model}_{pooling_type}.tsv"
 
     with open(fname, "w") as f:
