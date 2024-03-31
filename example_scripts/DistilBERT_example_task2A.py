@@ -138,11 +138,12 @@ import torch.nn.functional as F
 from transformers import AutoModel
 
 class LLMWithClassificationHead(nn.Module):
-    def __init__(self, model_name="bert-base-uncased", pooling_type="cls", hidden_size=768, attention_hidden_size=512, cnn_kernel_size=3):
+    def __init__(self, model_name, pooling_type, num_classes, hidden_size=768, attention_hidden_size=512, cnn_kernel_size=3):
         super(LLMWithClassificationHead, self).__init__()
         self.model = AutoModel.from_pretrained(model_name)
         self.pooling_type = pooling_type
         self.hidden_size = hidden_size
+        self.num_classes = num_classes
         
         if pooling_type == "attention":
             self.attention = nn.Sequential(
@@ -152,6 +153,8 @@ class LLMWithClassificationHead(nn.Module):
             )
         elif pooling_type == "cnn":
             self.conv1d = nn.Conv1d(hidden_size, hidden_size, kernel_size=cnn_kernel_size, padding=cnn_kernel_size//2)
+        
+        self.output_layer = nn.Linear(hidden_size, num_classes)
     
     def forward(self, input_ids, attention_mask):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
@@ -169,7 +172,8 @@ class LLMWithClassificationHead(nn.Module):
         else:
             raise ValueError(f"Unsupported pooling type: {self.pooling_type}")
         
-        return pooled_output
+        logits = self.output_layer(pooled_output)        
+        return logits
     
     def cls_pooling(self, outputs):
         return outputs.last_hidden_state[:, 0]
@@ -225,26 +229,6 @@ sentence1_key = non_label_column_names[1]
 # Padding strategy
 padding = "max_length"
 
-# Some models have set the order of the labels to use, so let's make sure we do use it.
-label_to_id = None
-if model.config.label2id != PretrainedConfig(num_labels=num_labels).label2id:
-    # Some have all caps in their config, some don't.
-    label_name_to_id = {k.lower(): v for k, v in model.config.label2id.items()}
-    if sorted(label_name_to_id.keys()) == sorted(label_list):
-        label_to_id = {
-            i: int(label_name_to_id[label_list[i]]) for i in range(num_labels)
-        }
-    else:
-        logger.warning(
-            "Your model seems to have been trained with labels, but they don't match the dataset: ",
-            f"model labels: {sorted(label_name_to_id.keys())}, dataset labels: {sorted(label_list)}."
-            "\nIgnoring the model labels as a result.",
-        )
-
-if label_to_id is not None:
-    model.config.label2id = label_to_id
-    model.config.id2label = {id: label for label, id in config.label2id.items()}
-
 if 128 > tokenizer.model_max_length:
     logger.warning(
         f"The max_seq_length passed ({128}) is larger than the maximum length for the"
@@ -260,11 +244,6 @@ def preprocess_function(examples):
         *args, padding=padding, max_length=max_seq_length, truncation=True
     )
 
-    # Map labels to IDs (not necessary for GLUE tasks)
-    if label_to_id is not None and "label" in examples:
-        result["label"] = [
-            (label_to_id[l] if l != -1 else -1) for l in examples["label"]
-        ]
     return result
 
 
