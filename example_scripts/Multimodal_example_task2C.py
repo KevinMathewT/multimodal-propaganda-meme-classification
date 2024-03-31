@@ -382,8 +382,8 @@ class MultimodalClassifier(nn.Module):
         self.text_dropout = nn.Dropout(0.3)
         text_hidden_size = 512
 
-        # Fully connected layer for text features
-        self.text_fc = nn.Linear(text_hidden_size, 512)
+        # # Fully connected layer for text features
+        # self.text_fc = nn.Linear(text_hidden_size, 512)
 
         # Initialize image model from a pre-trained model
         self.image_model = timm.create_model(image_model_name, pretrained=True)
@@ -432,7 +432,6 @@ class MultimodalClassifier(nn.Module):
     def forward(self, text, image, mask):
         text_output = self.text_model(text, attention_mask=mask)
         text_output = self.text_dropout(text_output)
-        text_output = self.text_fc(text_output)
 
         image_output = self.image_model(image)
 
