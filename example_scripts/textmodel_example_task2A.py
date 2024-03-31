@@ -426,7 +426,7 @@ model = LLMWithClassificationHead(
 )
 model.to(device)
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.get_params(learning_rate))
+optimizer = optim.Adam(model.parameters())
 num_epochs = 5
 total_steps = len(train_df) * num_epochs
 warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
