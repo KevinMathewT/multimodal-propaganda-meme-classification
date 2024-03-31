@@ -16,13 +16,13 @@ if USE_FP16:
 else:
     scaler = None
 
-learning_rate = 1e-4
-num_train_epochs = 5
+learning_rate = 5e-5
+num_train_epochs = 20
 train_max_seq_len = 512
 max_train_samples = None
 max_eval_samples = None
 max_predict_samples = None
-batch_size = 8
+batch_size = 32
 best_macro_f1 = 0.0
 
 import csv
@@ -36,6 +36,7 @@ from sklearn.metrics import f1_score
 from transformers import get_linear_schedule_with_warmup
 
 text_model = "aubmindlab/bert-base-arabertv2"
+# text_model = "distilbert-base-multilingual-cased"
 # text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
 print(f"Text Model: {text_model}")
 
@@ -271,7 +272,7 @@ class LLMWithClassificationHead(nn.Module):
         return pooled_output
 
 
-pooling_type = "attention"
+pooling_type = "cls"
 
 
 # Define the training and testing functions
@@ -282,7 +283,7 @@ def train(
     train_loss = 0.0
     correct = 0
     total_batches = len(train_loader)
-    check_interval = total_batches // 10
+    check_interval = total_batches // 1
     batch_losses = []
 
     for batch_idx, data in enumerate(train_loader, 1):
@@ -438,22 +439,21 @@ model = LLMWithClassificationHead(
 )
 model.to(device)
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters())
-num_epochs = 5
-total_steps = len(train_df) * num_epochs
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+total_steps = len(train_df) * num_train_epochs
 warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
 scheduler = get_linear_schedule_with_warmup(
     optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
 )
 
 # Train the model
-for epoch in range(num_epochs):
+for epoch in range(num_train_epochs):
     train_loss, acc = train(
         model, train_df, criterion, optimizer, scheduler, device, epoch, scaler
     )
     test_loss, accuracy, macro_f1 = test(model, validation_df, criterion, device, epoch)
     print(
         "  ALL | Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}, F1 = {:.4f}".format(
-            epoch + 1, num_epochs, train_loss, test_loss, acc, accuracy, macro_f1
+            epoch + 1, num_train_epochs, train_loss, test_loss, acc, accuracy, macro_f1
         )
     )

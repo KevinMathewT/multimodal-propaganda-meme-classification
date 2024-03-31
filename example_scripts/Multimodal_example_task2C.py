@@ -36,11 +36,12 @@ from transformers import AutoTokenizer, BertTokenizer
 from sklearn.metrics import f1_score
 from transformers import get_linear_schedule_with_warmup
 
-text_model = 'aubmindlab/bert-base-arabertv2'
+text_model = "aubmindlab/bert-base-arabertv2"
 # text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
 # image_model = 'efficientnet_b5'
-image_model = 'resnet50'
+image_model = "resnet50"
 print(f"Image Model: {image_model} | Text Model: {text_model}")
+
 
 class MultimodalDataset(Dataset):
     def __init__(self, ids, text_data, image_data, labels, is_test=False):
@@ -48,14 +49,25 @@ class MultimodalDataset(Dataset):
         self.image_data = image_data
         self.ids = ids
         self.is_test = is_test
-        #if not self.is_test:
+        # if not self.is_test:
         self.labels = labels
-        self.tokenizer = AutoTokenizer.from_pretrained(text_model) #bert-base-multilingual-uncased
-        self.transform = transforms.Compose([transforms.Resize(256),
-                                             transforms.CenterCrop(224),
-                                             transforms.ToTensor(),
-                                             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-                                             ])
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            text_model
+        )  # bert-base-multilingual-uncased
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize((224, 224)),  # Resize the image to 224x224
+                transforms.RandomHorizontalFlip(),  # Apply horizontal flip randomly
+                transforms.ColorJitter(
+                    brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1
+                ),  # Randomly change brightness, contrast, and saturation
+                transforms.RandomRotation(
+                    degrees=15
+                ),  # Randomly rotate the image to a certain degree
+                transforms.ToTensor(),
+                transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+            ]
+        )
 
     def __len__(self):
         return len(self.labels)
@@ -64,32 +76,37 @@ class MultimodalDataset(Dataset):
         id = self.ids[index]
         text = self.text_data[index]
         image = self.image_data[index]
-        #if not self.is_test:
+        # if not self.is_test:
         label = self.labels[index]
 
         # tokenize text data
-        text = self.tokenizer.encode_plus(text, add_special_tokens=True,
-                                           max_length=train_max_seq_len, padding='max_length',
-                                           return_attention_mask=True, return_tensors='pt')
+        text = self.tokenizer.encode_plus(
+            text,
+            add_special_tokens=True,
+            max_length=train_max_seq_len,
+            padding="max_length",
+            return_attention_mask=True,
+            return_tensors="pt",
+        )
 
-        #transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         image = self.transform(Image.open(image).convert("RGB"))
 
         fdata = {
-            'id': id,
-            'text': text['input_ids'].squeeze(0),
-            'text_mask': text['attention_mask'].squeeze(0),
-            'image': image,
+            "id": id,
+            "text": text["input_ids"].squeeze(0),
+            "text_mask": text["attention_mask"].squeeze(0),
+            "image": image,
         }
         if not self.is_test:
-            fdata['label'] = torch.tensor(label, dtype=torch.long)
+            fdata["label"] = torch.tensor(label, dtype=torch.long)
             return fdata
         else:
             return fdata
 
 
-train_file = 'arabic_memes_propaganda_araieval_24_train.json'
-validation_file = 'arabic_memes_propaganda_araieval_24_dev.json'
+train_file = "arabic_memes_propaganda_araieval_24_train.json"
+validation_file = "arabic_memes_propaganda_araieval_24_dev.json"
 # test_file = 'arabic_memes_propaganda_araieval_24_test.json'
 
 text_model_name = text_model
@@ -99,39 +116,48 @@ import json
 
 import pandas as pd
 import PIL
-#from datasets import Image, Dataset,DatasetDict
+
+# from datasets import Image, Dataset,DatasetDict
 from tqdm import tqdm
 
 # Image.open(obj['img_path']).convert("RGB")
 
+
 def read_data(fpath, is_test=False):
-  if is_test:
-    data = {'id': [], 'text': [], 'image': []}
-    js_obj = json.load(open(fpath, encoding='utf-8'))
-    for obj in tqdm(js_obj):
-      data['id'].append(obj['id'])
-      data['image'].append(obj['img_path'])
-      data['text'].append(obj['text'])
-  else:
-    data = {'id': [], 'text': [], 'image': [], 'label': []}
-    js_obj = json.load(open(fpath, encoding='utf-8'))
-    for obj in tqdm(js_obj):
-      data['id'].append(obj['id'])
-      data['image'].append(obj['img_path'])
-      data['text'].append(obj['text'])
-      data['label'].append(obj['class_label'])
-  return pd.DataFrame.from_dict(data)
+    if is_test:
+        data = {"id": [], "text": [], "image": []}
+        js_obj = json.load(open(fpath, encoding="utf-8"))
+        for obj in tqdm(js_obj):
+            data["id"].append(obj["id"])
+            data["image"].append(obj["img_path"])
+            data["text"].append(obj["text"])
+    else:
+        data = {"id": [], "text": [], "image": [], "label": []}
+        js_obj = json.load(open(fpath, encoding="utf-8"))
+        for obj in tqdm(js_obj):
+            data["id"].append(obj["id"])
+            data["image"].append(obj["img_path"])
+            data["text"].append(obj["text"])
+            data["label"].append(obj["class_label"])
+    return pd.DataFrame.from_dict(data)
 
 
-l2id = {'not_propaganda': 0, 'propaganda': 1}
+l2id = {"not_propaganda": 0, "propaganda": 1}
 
 train_df = read_data(train_file)
-train_df['label'] = train_df['label'].map(l2id)
-train_df = MultimodalDataset(train_df['id'], train_df['text'], train_df['image'], train_df['label'])
+train_df["label"] = train_df["label"].map(l2id)
+train_df = MultimodalDataset(
+    train_df["id"], train_df["text"], train_df["image"], train_df["label"]
+)
 
 validation_df = read_data(validation_file)
-validation_df['label'] = validation_df['label'].map(l2id)
-validation_df = MultimodalDataset(validation_df['id'], validation_df['text'], validation_df['image'], validation_df['label'])
+validation_df["label"] = validation_df["label"].map(l2id)
+validation_df = MultimodalDataset(
+    validation_df["id"],
+    validation_df["text"],
+    validation_df["image"],
+    validation_df["label"],
+)
 
 # test_df = read_data(test_file)
 # #test_df['label'] = test_df['label'].map(l2id)
@@ -157,8 +183,12 @@ import random
 for index in random.sample(range(len(train_df)), 3):
     print(f"Sample {index} of the training set: {train_df[index]}.")
 
-train_df = torch.utils.data.DataLoader(train_df, batch_size=8, shuffle=True, drop_last=True)
-validation_df = torch.utils.data.DataLoader(validation_df, batch_size=8, shuffle=True, drop_last=True)
+train_df = torch.utils.data.DataLoader(
+    train_df, batch_size=batch_size, shuffle=True, drop_last=True
+)
+validation_df = torch.utils.data.DataLoader(
+    validation_df, batch_size=batch_size, shuffle=True, drop_last=True
+)
 
 import torch
 import torch.nn as nn
@@ -175,16 +205,16 @@ import torch.nn.functional as F
 import timm
 from transformers import AutoModel
 
+
 class ConcatAttention(nn.Module):
     def __init__(self, input_dim, attention_dim):
         super(ConcatAttention, self).__init__()
         self.attention_layer = nn.Sequential(
-            nn.Linear(input_dim, input_dim),
-            nn.Softmax(dim=1)
+            nn.Linear(input_dim, input_dim), nn.Softmax(dim=1)
         )
 
         self.reduce = nn.Linear(input_dim, attention_dim)
-    
+
     def forward(self, text_features, image_features):
         concatenated_features = torch.cat((text_features, image_features), dim=1)
         attention_weights = self.attention_layer(concatenated_features)
@@ -193,124 +223,144 @@ class ConcatAttention(nn.Module):
         # print(f"Sizes: {concatenated_features.size()} | {attention_weights.size()} | {attended_features.size()} | {attended_features.sum(dim=1).size()} |")
         return attended_features
 
+
 class CrossModalAttention(nn.Module):
     def __init__(self, feature_dim, num_heads=1):
         super(CrossModalAttention, self).__init__()
-        self.text_to_image_attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=num_heads)
-        self.image_to_text_attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=num_heads)
+        self.text_to_image_attention = nn.MultiheadAttention(
+            embed_dim=feature_dim, num_heads=num_heads
+        )
+        self.image_to_text_attention = nn.MultiheadAttention(
+            embed_dim=feature_dim, num_heads=num_heads
+        )
 
     def forward(self, text_features, image_features):
         # Reshape features to have batch dimension
-        text_features = text_features.unsqueeze(0)  # Shape: (batch_size, 1, feature_dim)
-        image_features = image_features.unsqueeze(0)  # Shape: (batch_size, 1, feature_dim)
+        text_features = text_features.unsqueeze(
+            0
+        )  # Shape: (batch_size, 1, feature_dim)
+        image_features = image_features.unsqueeze(
+            0
+        )  # Shape: (batch_size, 1, feature_dim)
 
         # Apply cross-attention from text to image
         attended_image_features, _ = self.text_to_image_attention(
-            query=text_features,
-            key=image_features,
-            value=image_features
+            query=text_features, key=image_features, value=image_features
         )
 
         # Apply cross-attention from image to text
         attended_text_features, _ = self.image_to_text_attention(
-            query=image_features,
-            key=text_features,
-            value=text_features
+            query=image_features, key=text_features, value=text_features
         )
 
         # Combine attended features
-        combined_features = (attended_text_features.sum(dim=0) + attended_image_features.sum(dim=0)) / 2
+        combined_features = (
+            attended_text_features.sum(dim=0) + attended_image_features.sum(dim=0)
+        ) / 2
 
         return combined_features
+
 
 class SelfAttentionFusion(nn.Module):
     def __init__(self, feature_dim, num_heads=1):
         super(SelfAttentionFusion, self).__init__()
-        self.attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=num_heads)
-    
+        self.attention = nn.MultiheadAttention(
+            embed_dim=feature_dim, num_heads=num_heads
+        )
+
     def forward(self, text_features, image_features):
         # Concatenate features from both modalities
-        features = torch.cat((text_features.unsqueeze(0), image_features.unsqueeze(0)), dim=0)
+        features = torch.cat(
+            (text_features.unsqueeze(0), image_features.unsqueeze(0)), dim=0
+        )
         # Apply multi-head attention
         attended_features, _ = self.attention(features, features, features)
         # You might want to combine or process these features further
         combined_features = attended_features.sum(dim=0)  # Simple sum for demonstration
         return combined_features
 
-fusion_method = 'self_attention' # ['concatenation', 'cross_modal', 'self_attention']
+
+fusion_method = "self_attention"  # ['concatenation', 'cross_modal', 'self_attention']
 print(f"Using Fusion: {fusion_method}")
+
 
 class MultimodalClassifier(nn.Module):
     def __init__(self, num_classes, fusion_method):
         super(MultimodalClassifier, self).__init__()
-        
+
         # Initialize text model from a pre-trained model
         self.text_model = AutoModel.from_pretrained(text_model_name)
         self.text_dropout = nn.Dropout(0.3)
         text_hidden_size = self.text_model.config.hidden_size
-        
+
         # Fully connected layer for text features
         self.text_fc = nn.Linear(text_hidden_size, 512)
-        
+
         # Initialize image model from a pre-trained model
         self.image_model = timm.create_model(image_model_name, pretrained=True)
         print(f"in features before: {self.image_model.fc.in_features}")
         self.image_model.fc = nn.Linear(self.image_model.fc.in_features, 512)
         print(f"in features before: {self.image_model.fc.in_features}")
-        
+
         self.fusion_method = fusion_method
-        if fusion_method == 'concatenation':
+        if fusion_method == "concatenation":
             self.fusion_layer = ConcatAttention(1024, 512)
-        elif fusion_method == 'cross_modal':
+        elif fusion_method == "cross_modal":
             self.fusion_layer = CrossModalAttention(512)
-        elif fusion_method == 'self_attention':
+        elif fusion_method == "self_attention":
             self.fusion_layer = SelfAttentionFusion(512)
         else:
             raise ValueError(f"Unsupported fusion method: {fusion_method}")
-        
-        fusion_output_size = 512 if fusion_method in ['concatenation', 'cross_modal', 'self_attention'] else 512
+
+        fusion_output_size = (
+            512
+            if fusion_method in ["concatenation", "cross_modal", "self_attention"]
+            else 512
+        )
         self.output_fc = nn.Linear(fusion_output_size, num_classes)
-    
+
     def get_params(self, lr):
         attention_params = []
         text_model_params = []
         image_model_params = []
-        
+
         for name, param in self.named_parameters():
-            if 'fusion_layer' in name:
+            if "fusion_layer" in name:
                 attention_params.append(param)
-            elif 'text_model' in name:
+            elif "text_model" in name:
                 text_model_params.append(param)
-            elif 'image_model' in name:
+            elif "image_model" in name:
                 image_model_params.append(param)
             else:
                 attention_params.append(param)
-        
+
         return [
             {"params": attention_params, "lr": lr},
-            {"params": text_model_params, "lr": lr / 10},
-            {"params": image_model_params, "lr": lr / 10}
+            {"params": text_model_params, "lr": lr * 0.8},
+            {"params": image_model_params, "lr": lr * 0.8},
         ]
-    
+
     def forward(self, text, image, mask):
         text_output = self.text_model(text, attention_mask=mask).last_hidden_state
         text_output = self.text_dropout(text_output[:, 0, :])
         text_output = self.text_fc(text_output)
-        
+
         image_output = self.image_model(image)
-        
-        if hasattr(self, 'fusion_layer'):
+
+        if hasattr(self, "fusion_layer"):
             fused_output = self.fusion_layer(text_output, image_output)
         else:
             raise ValueError(f"Unsupported fusion method: {self.fusion_method}")
-        
+
         output = self.output_fc(fused_output)
-        
+
         return output
-    
+
 
 # Define the training and testing functions
-def train(model, train_loader, criterion, optimizer,  scheduler, device, epoch, scaler=None):
+def train(
+    model, train_loader, criterion, optimizer, scheduler, device, epoch, scaler=None
+):
     model.train()
     train_loss = 0.0
     correct = 0
@@ -325,11 +375,11 @@ def train(model, train_loader, criterion, optimizer,  scheduler, device, epoch, 
                 text = data["text"].to(device)
                 image = data["image"].to(device)
                 mask = data["text_mask"].to(device)
-                labels = data['label'].to(device)
+                labels = data["label"].to(device)
                 output = model(text, image, mask)
                 loss = criterion(output, labels)
             scaler.scale(loss).backward()
-            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float('inf'))
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
             max_grad_norm = 1.0  # Adjust the threshold as needed
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
             scaler.step(optimizer)
@@ -338,15 +388,15 @@ def train(model, train_loader, criterion, optimizer,  scheduler, device, epoch, 
             text = data["text"].to(device)
             image = data["image"].to(device)
             mask = data["text_mask"].to(device)
-            labels = data['label'].to(device)
+            labels = data["label"].to(device)
             output = model(text, image, mask)
             loss = criterion(output, labels)
             loss.backward()
-            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float('inf'))
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
             max_grad_norm = 1.0  # Adjust the threshold as needed
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
             optimizer.step()
-        
+
         scheduler.step()
         train_loss += loss.item() * labels.size(0)
         batch_losses.append(loss.item())  # Append the loss for the current batch
@@ -355,14 +405,22 @@ def train(model, train_loader, criterion, optimizer,  scheduler, device, epoch, 
 
         if batch_idx % 10 == 0:
             current_lr = scheduler.get_last_lr()[0]  # Get the current learning rate
-            avg_loss = sum(batch_losses) / len(batch_losses)  # Calculate the average loss
-            print(f"TRAIN | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {avg_loss:.4f} | LR: {current_lr} | Grad Norm: {grad_norm:.4f} |")
+            avg_loss = sum(batch_losses) / len(
+                batch_losses
+            )  # Calculate the average loss
+            print(
+                f"TRAIN | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {avg_loss:.4f} | LR: {current_lr} | Grad Norm: {grad_norm:.4f} |"
+            )
             batch_losses = []  # Reset the batch losses for the next 10 steps
 
         # Check test accuracy at equidistant intervals
         if batch_idx % check_interval == 0 or batch_idx == total_batches:
-            test_loss, accuracy, macro_f1 = test(model, validation_df, criterion, device, epoch)
-            print(f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {test_loss:.4f} | Acc: {accuracy:.4f} | F1: {macro_f1:.4f} |")
+            test_loss, accuracy, macro_f1 = test(
+                model, validation_df, criterion, device, epoch
+            )
+            print(
+                f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {test_loss:.4f} | Acc: {accuracy:.4f} | F1: {macro_f1:.4f} |"
+            )
             global best_macro_f1
             if macro_f1 > best_macro_f1:
                 best_macro_f1 = macro_f1
@@ -370,7 +428,9 @@ def train(model, train_loader, criterion, optimizer,  scheduler, device, epoch, 
 
     train_loss /= len(train_loader.dataset)
     accuracy = correct / len(train_loader.dataset)
-    print(f"TRAIN | Epoch [{epoch}] | Training Loss: {train_loss:.4f} | Accuracy: {accuracy:.4f} |")
+    print(
+        f"TRAIN | Epoch [{epoch}] | Training Loss: {train_loss:.4f} | Accuracy: {accuracy:.4f} |"
+    )
     return train_loss, accuracy
 
 
@@ -389,17 +449,17 @@ def test(model, test_loader, criterion, device, epoch):
                     text = data["text"].to(device)
                     image = data["image"].to(device)
                     mask = data["text_mask"].to(device)
-                    labels = data['label'].to(device)
+                    labels = data["label"].to(device)
                     output = model(text, image, mask)
                     loss = criterion(output, labels)
             else:
                 text = data["text"].to(device)
                 image = data["image"].to(device)
                 mask = data["text_mask"].to(device)
-                labels = data['label'].to(device)
+                labels = data["label"].to(device)
                 output = model(text, image, mask)
                 loss = criterion(output, labels)
-            
+
             test_loss += loss.item() * labels.size(0)
             _, predicted = torch.max(output, 1)
             correct += (predicted == labels).sum().item()
@@ -407,13 +467,18 @@ def test(model, test_loader, criterion, device, epoch):
             predicted_labels.extend(predicted.cpu().numpy())
 
             if batch_idx % 10 == 0:
-                print(f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |")
+                print(
+                    f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |"
+                )
 
     test_loss /= len(test_loader.dataset)
     accuracy = correct / len(test_loader.dataset)
-    macro_f1 = f1_score(true_labels, predicted_labels, average='macro')
-    print(f" TEST | Epoch [{epoch}] | Testing Loss: {test_loss:.4f} | Accuracy: {accuracy:.4f} | Macro F1: {macro_f1:.4f} |")
+    macro_f1 = f1_score(true_labels, predicted_labels, average="macro")
+    print(
+        f" TEST | Epoch [{epoch}] | Testing Loss: {test_loss:.4f} | Accuracy: {accuracy:.4f} | Macro F1: {macro_f1:.4f} |"
+    )
     return test_loss, accuracy, macro_f1
+
 
 def evaluate(model, test_loader, device):
     model.eval()
@@ -431,19 +496,19 @@ def evaluate(model, test_loader, device):
             ids.append(data["id"])
 
     team_name = "kevinmathew"
-    fname = f'task2C_{team_name}.tsv'
-    run_id = f'{team_name}_{image_model}_{text_model}_{fusion_method}.tsv'
+    fname = f"task2C_{team_name}.tsv"
+    run_id = f"{team_name}_{image_model}_{text_model}_{fusion_method}.tsv"
 
-    with open(fname, 'w') as f:
-      f.write("id\tlabel\trun_id\n")
-      indx = 0
-      id2l = {0:'not_propaganda', 1:'propaganda'}
-      for i, line in enumerate(predictions):
-        for indx, l in enumerate(line.tolist()):
-          f.write(f"{ids[i][indx]}\t{id2l[l]}\tDistilBERT+ResNet\n")
+    with open(fname, "w") as f:
+        f.write("id\tlabel\trun_id\n")
+        indx = 0
+        id2l = {0: "not_propaganda", 1: "propaganda"}
+        for i, line in enumerate(predictions):
+            for indx, l in enumerate(line.tolist()):
+                f.write(f"{ids[i][indx]}\t{id2l[l]}\t{run_id}\n")
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = MultimodalClassifier(num_classes=2, fusion_method=fusion_method)
 model.to(device)
 criterion = nn.CrossEntropyLoss()
@@ -451,11 +516,18 @@ optimizer = optim.Adam(model.get_params(learning_rate))
 num_epochs = 5
 total_steps = len(train_df) * num_epochs
 warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
-scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
+scheduler = get_linear_schedule_with_warmup(
+    optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
+)
 
 # Train the model
 for epoch in range(num_epochs):
-    train_loss, acc = train(model, train_df, criterion, optimizer, scheduler, device, epoch, scaler)
+    train_loss, acc = train(
+        model, train_df, criterion, optimizer, scheduler, device, epoch, scaler
+    )
     test_loss, accuracy, macro_f1 = test(model, validation_df, criterion, device, epoch)
-    print('  ALL | Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}, F1 = {:.4f}'.format(epoch+1, num_epochs, train_loss, test_loss, acc, accuracy, macro_f1))
-
+    print(
+        "  ALL | Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}, F1 = {:.4f}".format(
+            epoch + 1, num_epochs, train_loss, test_loss, acc, accuracy, macro_f1
+        )
+    )
