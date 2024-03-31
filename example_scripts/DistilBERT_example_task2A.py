@@ -156,7 +156,7 @@ class LLMWithClassificationHead(nn.Module):
         
         self.output_layer = nn.Linear(hidden_size, num_classes)
     
-    def forward(self, input_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
         
         if self.pooling_type == "cls":
@@ -173,7 +173,14 @@ class LLMWithClassificationHead(nn.Module):
             raise ValueError(f"Unsupported pooling type: {self.pooling_type}")
         
         logits = self.output_layer(pooled_output)        
-        return logits
+        
+        # Calculate loss if labels are provided
+        if labels is not None:
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits.view(-1, self.num_classes), labels.view(-1))
+            return loss, logits  # Modify return statement to include loss
+        
+        return logits  # Keep return statement for scenarios without labels
     
     def cls_pooling(self, outputs):
         return outputs.last_hidden_state[:, 0]
