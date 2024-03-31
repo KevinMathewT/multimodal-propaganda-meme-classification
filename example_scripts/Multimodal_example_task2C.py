@@ -430,7 +430,7 @@ class MultimodalClassifier(nn.Module):
         ]
 
     def forward(self, text, image, mask):
-        text_output = self.text_model(text, attention_mask=mask).last_hidden_state
+        text_output = self.text_model(text, attention_mask=mask)
         text_output = self.text_dropout(text_output[:, 0, :])
         text_output = self.text_fc(text_output)
 
