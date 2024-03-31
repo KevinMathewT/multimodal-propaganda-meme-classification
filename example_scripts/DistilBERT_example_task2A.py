@@ -303,13 +303,20 @@ data_collator = default_data_collator
 
 from transformers import TrainerCallback
 
-
 class CustomCallback(TrainerCallback):
     def on_step_end(self, args, state, control, **kwargs):
-        if state.global_step % 10 == 0:
-            logger.info(
-                f"Step {state.global_step}: Loss = {state.loss:.4f}, Learning Rate = {state.lr:.2e}, Grad Norm = {state.grad_norm:.2f}"
-            )
+        # Access the trainer object via kwargs if not directly available
+        trainer = kwargs.get('trainer')
+        if trainer:
+            # Access the log history and get the most recent loss value
+            logs = trainer.state.log_history
+            if logs:
+                # Ensure there's at least one log entry with a 'loss' key
+                recent_log = next((log for log in reversed(logs) if 'loss' in log), None)
+                if recent_log:
+                    loss = recent_log['loss']
+                    print(f"Step {state.global_step}: Loss = {loss:.4f}")
+
 
 
 custom_callback = CustomCallback()
