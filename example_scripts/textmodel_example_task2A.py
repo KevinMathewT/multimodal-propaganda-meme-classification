@@ -299,7 +299,6 @@ def train(
                     print("Input data:", data)
                     print("Token IDs:", text)
                     print("Embedding weights shape:", model.model.embeddings.word_embeddings.weight.shape)
-                    raise e
                 loss = criterion(output, labels)
             scaler.scale(loss).backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
@@ -318,7 +317,6 @@ def train(
                 print("Input data:", data)
                 print("Token IDs:", text)
                 print("Embedding weights shape:", model.model.embeddings.word_embeddings.weight.shape)
-                raise e
             loss = criterion(output, labels)
             loss.backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
