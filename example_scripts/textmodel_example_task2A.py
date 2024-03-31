@@ -46,8 +46,8 @@ class TextDataset(Dataset):
         ids,
         text_data,
         labels,
+        text_model,
         is_test=False,
-        text_model="bert-base-multilingual-uncased",
     ):
         self.text_data = text_data
         self.ids = ids
@@ -122,17 +122,17 @@ l2id = {"not_propaganda": 0, "propaganda": 1}
 
 train_df = read_data(train_file)
 train_df["label"] = train_df["label"].map(l2id)
-train_df = TextDataset(train_df["id"], train_df["text"], train_df["label"])
+train_df = TextDataset(train_df["id"], train_df["text"], train_df["label"], text_model=text_model)
 
 validation_df = read_data(validation_file)
 validation_df["label"] = validation_df["label"].map(l2id)
 validation_df = TextDataset(
-    validation_df["id"], validation_df["text"], validation_df["label"]
+    validation_df["id"], validation_df["text"], validation_df["label"], text_model=text_model
 )
 
 # test_df = read_data(test_file)
 # #test_df['label'] = test_df['label'].map(l2id)
-# test_df = MultimodalDataset(test_df['id'], test_df['text']) #, test_df['label']
+# test_df = MultimodalDataset(test_df['id'], test_df['text'], text_model=text_model) #, test_df['label']
 
 
 if max_train_samples is not None:

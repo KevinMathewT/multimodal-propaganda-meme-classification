@@ -22,6 +22,7 @@ evaluate = "^0.4.1"
 timm = "^0.9.16"
 notebook = "^7.1.2"
 accelerate = "^0.28.0"
+torch-lr-finder = "^0.2.1"
 
 
 [build-system]
