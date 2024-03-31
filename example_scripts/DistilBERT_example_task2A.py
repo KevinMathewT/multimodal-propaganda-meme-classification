@@ -244,14 +244,24 @@ def compute_metrics(p: EvalPrediction):
 
 data_collator = default_data_collator
 
+from transformers import TrainerCallback
+
+class CustomCallback(TrainerCallback):
+    def on_step_end(self, args, state, control, **kwargs):
+        if state.global_step % 10 == 0:
+            logger.info(f"Step {state.global_step}: Loss = {state.loss:.4f}, Learning Rate = {state.lr:.2e}, Grad Norm = {state.grad_norm:.2f}")
+
+custom_callback = CustomCallback()
+
 trainer = Trainer(
     model=model,
     args=training_args,
     train_dataset=train_dataset,
-    # eval_dataset=eval_dataset, # if you have development and test set, uncomment this line
     compute_metrics=compute_metrics,
     tokenizer=tokenizer,
     data_collator=data_collator,
+    callbacks=[custom_callback],
+    disable_tqdm=True,
 )
 
 train_result = trainer.train()
