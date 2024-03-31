@@ -46,8 +46,8 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 
-train_file = 'arabic_memes_propaganda_araieval_24_train.json'
-validation_file = 'arabic_memes_propaganda_araieval_24_dev.json'
+train_file = "arabic_memes_propaganda_araieval_24_train.json"
+validation_file = "arabic_memes_propaganda_araieval_24_dev.json"
 # test_file = 'arabic_memes_propaganda_araieval_24_test.json'
 
 training_args = TrainingArguments(
@@ -58,15 +58,15 @@ training_args = TrainingArguments(
     output_dir="./distilBERT_m/",
     overwrite_output_dir=True,
     remove_unused_columns=False,
-    local_rank= 1,
+    local_rank=1,
     load_best_model_at_end=True,
     save_total_limit=2,
-    save_strategy="no"
+    save_strategy="no",
 )
 
 max_train_samples = None
-max_eval_samples=None
-max_predict_samples=None
+max_eval_samples = None
+max_predict_samples = None
 max_seq_length = 512
 batch_size = 16
 
@@ -84,53 +84,119 @@ logger.warning(
 )
 logger.info(f"Training/evaluation parameters {training_args}")
 
-model_name = 'distilbert-base-multilingual-cased'
+model_name = "distilbert-base-multilingual-cased"
 
 set_seed(training_args.seed)
 
 import json
+
+
 def read_data(fpath, is_test=False):
-  if is_test:
-    data = {'id': [], 'text': []}
-    js_obj = json.load(open(fpath, encoding='utf-8'))
-    for obj in js_obj:
-      data['id'].append(obj['id'])
-      data['text'].append(obj['text'])
-  else:
-    data = {'id': [], 'text': [], 'label': []}
-    js_obj = json.load(open(fpath, encoding='utf-8'))
-    for obj in js_obj:
-      data['id'].append(obj['id'])
-      data['text'].append(obj['text'])
-      data['label'].append(obj['class_label'])
-  return pd.DataFrame.from_dict(data)
+    if is_test:
+        data = {"id": [], "text": []}
+        js_obj = json.load(open(fpath, encoding="utf-8"))
+        for obj in js_obj:
+            data["id"].append(obj["id"])
+            data["text"].append(obj["text"])
+    else:
+        data = {"id": [], "text": [], "label": []}
+        js_obj = json.load(open(fpath, encoding="utf-8"))
+        for obj in js_obj:
+            data["id"].append(obj["id"])
+            data["text"].append(obj["text"])
+            data["label"].append(obj["class_label"])
+    return pd.DataFrame.from_dict(data)
 
 
-l2id = {'not_propaganda': 0, 'propaganda': 1}
+l2id = {"not_propaganda": 0, "propaganda": 1}
 train_df = read_data(train_file)
-train_df['label'] = train_df['label'].map(l2id)
+train_df["label"] = train_df["label"].map(l2id)
 train_df = Dataset.from_pandas(train_df)
 validation_df = read_data(validation_file)
-validation_df['label'] = validation_df['label'].map(l2id)
+validation_df["label"] = validation_df["label"].map(l2id)
 validation_df = Dataset.from_pandas(validation_df)
 # test_df = read_data(test_file)
 # #test_df['label'] = test_df['label'].map(l2id)
 # test_df = Dataset.from_pandas(test_df)
 
 
-
-#data_files = {"train": train_df, "validation": validation_df, "test": validation_df}
+# data_files = {"train": train_df, "validation": validation_df, "test": validation_df}
 data_files = {"train": train_df, "validation": validation_df}
 for key in data_files.keys():
     logger.info(f"loading a local file for {key}")
 raw_datasets = DatasetDict(
-    {"train": train_df, "validation": validation_df} # , "test": test_df
+    {"train": train_df, "validation": validation_df}  # , "test": test_df
 )
 
 # Labels
 label_list = raw_datasets["train"].unique("label")
 label_list.sort()  # sort the labels for determine
 num_labels = len(label_list)
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from transformers import AutoModel
+
+class LLMWithClassificationHead(nn.Module):
+    def __init__(self, model_name="bert-base-uncased", pooling_type="cls", hidden_size=768, attention_hidden_size=512, cnn_kernel_size=3):
+        super(LLMWithClassificationHead, self).__init__()
+        self.model = AutoModel.from_pretrained(model_name)
+        self.pooling_type = pooling_type
+        self.hidden_size = hidden_size
+        
+        if pooling_type == "attention":
+            self.attention = nn.Sequential(
+                nn.Linear(hidden_size, attention_hidden_size),
+                nn.Tanh(),
+                nn.Linear(attention_hidden_size, 1)
+            )
+        elif pooling_type == "cnn":
+            self.conv1d = nn.Conv1d(hidden_size, hidden_size, kernel_size=cnn_kernel_size, padding=cnn_kernel_size//2)
+    
+    def forward(self, input_ids, attention_mask):
+        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
+        
+        if self.pooling_type == "cls":
+            pooled_output = self.cls_pooling(outputs)
+        elif self.pooling_type == "max":
+            pooled_output = self.max_pooling(outputs)
+        elif self.pooling_type == "mean":
+            pooled_output = self.mean_pooling(outputs, attention_mask)
+        elif self.pooling_type == "attention":
+            pooled_output = self.attention_pooling(outputs, attention_mask)
+        elif self.pooling_type == "cnn":
+            pooled_output = self.cnn_pooling(outputs)
+        else:
+            raise ValueError(f"Unsupported pooling type: {self.pooling_type}")
+        
+        return pooled_output
+    
+    def cls_pooling(self, outputs):
+        return outputs.last_hidden_state[:, 0]
+    
+    def max_pooling(self, outputs):
+        return torch.max(outputs.last_hidden_state, dim=1)[0]
+    
+    def mean_pooling(self, outputs, attention_mask):
+        attention_mask_expanded = attention_mask.unsqueeze(-1).expand(outputs.last_hidden_state.size()).float()
+        sum_embeddings = torch.sum(outputs.last_hidden_state * attention_mask_expanded, dim=1)
+        sum_mask = torch.clamp(attention_mask_expanded.sum(1), min=1e-9)
+        return sum_embeddings / sum_mask
+    
+    def attention_pooling(self, outputs, attention_mask):
+        attention_scores = self.attention(outputs.last_hidden_state)
+        attention_scores = attention_scores.squeeze(-1)
+        attention_scores = attention_scores + (1.0 - attention_mask) * -1e9
+        attention_weights = F.softmax(attention_scores, dim=1)
+        weighted_embeddings = torch.sum(outputs.last_hidden_state * attention_weights.unsqueeze(-1), dim=1)
+        return weighted_embeddings
+    
+    def cnn_pooling(self, outputs):
+        last_hidden_state = outputs.last_hidden_state.permute(0, 2, 1)
+        cnn_outputs = self.conv1d(last_hidden_state)
+        cnn_outputs = F.relu(cnn_outputs)
+        pooled_output, _ = torch.max(cnn_outputs, dim=-1)
+        return pooled_output
 
 config = AutoConfig.from_pretrained(
     model_name,
@@ -149,34 +215,31 @@ tokenizer = AutoTokenizer.from_pretrained(
     use_auth_token=None,
 )
 
-model = AutoModelForSequenceClassification.from_pretrained(
-    model_name,
-    from_tf=bool(".ckpt" in model_name),
-    config=config,
-    cache_dir=None,
-    revision="main",
-    use_auth_token=None,
-    ignore_mismatched_sizes=False,
-)
+model = LLMWithClassificationHead(model_name=model_name, pooling_type="attention")
 
-non_label_column_names = [name for name in raw_datasets["train"].column_names if name != "label"]
-sentence1_key= non_label_column_names[1]
+non_label_column_names = [
+    name for name in raw_datasets["train"].column_names if name != "label"
+]
+sentence1_key = non_label_column_names[1]
 
 # Padding strategy
 padding = "max_length"
 
 # Some models have set the order of the labels to use, so let's make sure we do use it.
 label_to_id = None
-if (model.config.label2id != PretrainedConfig(num_labels=num_labels).label2id):
+if model.config.label2id != PretrainedConfig(num_labels=num_labels).label2id:
     # Some have all caps in their config, some don't.
     label_name_to_id = {k.lower(): v for k, v in model.config.label2id.items()}
     if sorted(label_name_to_id.keys()) == sorted(label_list):
-        label_to_id = {i: int(label_name_to_id[label_list[i]]) for i in range(num_labels)}
+        label_to_id = {
+            i: int(label_name_to_id[label_list[i]]) for i in range(num_labels)
+        }
     else:
         logger.warning(
             "Your model seems to have been trained with labels, but they don't match the dataset: ",
             f"model labels: {sorted(label_name_to_id.keys())}, dataset labels: {sorted(label_list)}."
-            "\nIgnoring the model labels as a result.",)
+            "\nIgnoring the model labels as a result.",
+        )
 
 if label_to_id is not None:
     model.config.label2id = label_to_id
@@ -185,19 +248,26 @@ if label_to_id is not None:
 if 128 > tokenizer.model_max_length:
     logger.warning(
         f"The max_seq_length passed ({128}) is larger than the maximum length for the"
-        f"model ({tokenizer.model_max_length}). Using max_seq_length={tokenizer.model_max_length}.")
+        f"model ({tokenizer.model_max_length}). Using max_seq_length={tokenizer.model_max_length}."
+    )
 max_seq_length = min(128, tokenizer.model_max_length)
+
 
 def preprocess_function(examples):
     # Tokenize the texts
-    args = (
-        (examples[sentence1_key],))
-    result = tokenizer(*args, padding=padding, max_length=max_seq_length, truncation=True)
+    args = (examples[sentence1_key],)
+    result = tokenizer(
+        *args, padding=padding, max_length=max_seq_length, truncation=True
+    )
 
     # Map labels to IDs (not necessary for GLUE tasks)
     if label_to_id is not None and "label" in examples:
-        result["label"] = [(label_to_id[l] if l != -1 else -1) for l in examples["label"]]
+        result["label"] = [
+            (label_to_id[l] if l != -1 else -1) for l in examples["label"]
+        ]
     return result
+
+
 raw_datasets = raw_datasets.map(
     preprocess_function,
     batched=True,
@@ -236,6 +306,7 @@ for index in random.sample(range(len(train_dataset)), 3):
 
 metric = evaluate.load("accuracy")
 
+
 def compute_metrics(p: EvalPrediction):
     preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
     preds = np.argmax(preds, axis=1)
@@ -246,10 +317,14 @@ data_collator = default_data_collator
 
 from transformers import TrainerCallback
 
+
 class CustomCallback(TrainerCallback):
     def on_step_end(self, args, state, control, **kwargs):
         if state.global_step % 10 == 0:
-            logger.info(f"Step {state.global_step}: Loss = {state.loss:.4f}, Learning Rate = {state.lr:.2e}, Grad Norm = {state.grad_norm:.2f}")
+            logger.info(
+                f"Step {state.global_step}: Loss = {state.loss:.4f}, Learning Rate = {state.lr:.2e}, Grad Norm = {state.grad_norm:.2f}"
+            )
+
 
 custom_callback = CustomCallback()
 
@@ -261,7 +336,6 @@ trainer = Trainer(
     tokenizer=tokenizer,
     data_collator=data_collator,
     callbacks=[custom_callback],
-    disable_tqdm=True,
 )
 
 train_result = trainer.train()
@@ -270,7 +344,6 @@ max_train_samples = (
     max_train_samples if max_train_samples is not None else len(train_dataset)
 )
 metrics["train_samples"] = min(max_train_samples, len(train_dataset))
-
 
 
 trainer.save_model()
@@ -293,10 +366,10 @@ trainer.save_metrics("eval", metrics)
 # if the test set is available, you don't need to run this cell
 predict_dataset = eval_dataset
 
-id2l = {0:'not_propaganda', 1:'propaganda'}
+id2l = {0: "not_propaganda", 1: "propaganda"}
 logger.info("*** Predict ***")
 # predict_dataset = predict_dataset.remove_columns("label")
-ids = predict_dataset['id']
+ids = predict_dataset["id"]
 predict_dataset = predict_dataset.remove_columns("id")
 predictions = trainer.predict(predict_dataset, metric_key_prefix="predict").predictions
 predictions = np.argmax(predictions, axis=1)
@@ -314,5 +387,3 @@ ids[0]
 
 kwargs = {"finetuned_from": model_name, "tasks": "text-classification"}
 trainer.create_model_card(**kwargs)
-
-
