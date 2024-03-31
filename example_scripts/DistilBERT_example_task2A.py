@@ -219,7 +219,7 @@ tokenizer = AutoTokenizer.from_pretrained(
     use_auth_token=None,
 )
 
-model = LLMWithClassificationHead(model_name=model_name, pooling_type="attention")
+model = LLMWithClassificationHead(model_name=model_name, pooling_type="attention", num_classes=2)
 
 non_label_column_names = [
     name for name in raw_datasets["train"].column_names if name != "label"
