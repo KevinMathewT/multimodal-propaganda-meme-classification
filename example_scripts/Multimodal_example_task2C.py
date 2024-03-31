@@ -380,7 +380,7 @@ class MultimodalClassifier(nn.Module):
             model_name=text_model, pooling_type=pooling_type
         )
         self.text_dropout = nn.Dropout(0.3)
-        text_hidden_size = self.text_model.config.hidden_size
+        text_hidden_size = 512
 
         # Fully connected layer for text features
         self.text_fc = nn.Linear(text_hidden_size, 512)
