@@ -206,6 +206,92 @@ import timm
 from transformers import AutoModel
 
 
+class LLMWithClassificationHead(nn.Module):
+    def __init__(
+        self,
+        model_name,
+        pooling_type,
+        hidden_size=768,
+        attention_hidden_size=512,
+        cnn_kernel_size=3,
+    ):
+        super(LLMWithClassificationHead, self).__init__()
+        self.model = AutoModel.from_pretrained(model_name)
+        self.pooling_type = pooling_type
+        self.hidden_size = hidden_size
+
+        if pooling_type == "attention":
+            self.attention = nn.Sequential(
+                nn.Linear(hidden_size, attention_hidden_size),
+                nn.Tanh(),
+                nn.Linear(attention_hidden_size, 1),
+            )
+        elif pooling_type == "cnn":
+            self.conv1d = nn.Conv1d(
+                hidden_size,
+                hidden_size,
+                kernel_size=cnn_kernel_size,
+                padding=cnn_kernel_size // 2,
+            )
+
+
+    def forward(self, input_ids, attention_mask, labels=None):
+        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
+
+        if self.pooling_type == "cls":
+            pooled_output = self.cls_pooling(outputs)
+        elif self.pooling_type == "max":
+            pooled_output = self.max_pooling(outputs)
+        elif self.pooling_type == "mean":
+            pooled_output = self.mean_pooling(outputs, attention_mask)
+        elif self.pooling_type == "attention":
+            pooled_output = self.attention_pooling(outputs, attention_mask)
+        elif self.pooling_type == "cnn":
+            pooled_output = self.cnn_pooling(outputs)
+        else:
+            raise ValueError(f"Unsupported pooling type: {self.pooling_type}")
+
+        return pooled_output  # Keep return statement for scenarios without labels
+
+    def cls_pooling(self, outputs):
+        return outputs.last_hidden_state[:, 0]
+
+    def max_pooling(self, outputs):
+        return torch.max(outputs.last_hidden_state, dim=1)[0]
+
+    def mean_pooling(self, outputs, attention_mask):
+        attention_mask_expanded = (
+            attention_mask.unsqueeze(-1)
+            .expand(outputs.last_hidden_state.size())
+            .float()
+        )
+        sum_embeddings = torch.sum(
+            outputs.last_hidden_state * attention_mask_expanded, dim=1
+        )
+        sum_mask = torch.clamp(attention_mask_expanded.sum(1), min=1e-9)
+        return sum_embeddings / sum_mask
+
+    def attention_pooling(self, outputs, attention_mask):
+        attention_scores = self.attention(outputs.last_hidden_state)
+        attention_scores = attention_scores.squeeze(-1)
+        attention_scores = attention_scores + (1.0 - attention_mask) * -1e9
+        attention_weights = F.softmax(attention_scores, dim=1)
+        weighted_embeddings = torch.sum(
+            outputs.last_hidden_state * attention_weights.unsqueeze(-1), dim=1
+        )
+        return weighted_embeddings
+
+    def cnn_pooling(self, outputs):
+        last_hidden_state = outputs.last_hidden_state.permute(0, 2, 1)
+        cnn_outputs = self.conv1d(last_hidden_state)
+        cnn_outputs = F.relu(cnn_outputs)
+        pooled_output, _ = torch.max(cnn_outputs, dim=-1)
+        return pooled_output
+
+
+pooling_type = "cls"
+
+
 class ConcatAttention(nn.Module):
     def __init__(self, input_dim, attention_dim):
         super(ConcatAttention, self).__init__()
@@ -289,7 +375,9 @@ class MultimodalClassifier(nn.Module):
         super(MultimodalClassifier, self).__init__()
 
         # Initialize text model from a pre-trained model
-        self.text_model = AutoModel.from_pretrained(text_model_name)
+        self.text_model = model = LLMWithClassificationHead(
+            model_name=text_model, pooling_type=pooling_type
+        )
         self.text_dropout = nn.Dropout(0.3)
         text_hidden_size = self.text_model.config.hidden_size
 
