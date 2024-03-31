@@ -435,6 +435,8 @@ class MultimodalClassifier(nn.Module):
 
         image_output = self.image_model(image)
 
+        print(f"image size: {image_output.size()} | text size: {text_output.size()}")
+
         if hasattr(self, "fusion_layer"):
             fused_output = self.fusion_layer(text_output, image_output)
         else:
