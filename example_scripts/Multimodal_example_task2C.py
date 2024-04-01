@@ -311,6 +311,7 @@ class MCA(nn.Module):
         self.W1 = nn.Linear(units, units)
         self.W2 = nn.Linear(units, units)
         self.V = nn.Linear(units, 1)
+        self.reduce = nn.Linear(2 * units, units)
 
     def forward(self, text_features, image_features):
         # hidden_with_time_axis shape == (batch_size, 1, hidden_size)
@@ -329,7 +330,9 @@ class MCA(nn.Module):
         context_vector2 = torch.sum(context_vector2, dim=1)
         context_vector = torch.cat([context_vector1, context_vector2], dim=1)
 
-        return context_vector, attention_weights
+        context_vector = self.reduce(context_vector)
+
+        return context_vector
 
 class ConcatAttention(nn.Module):
     def __init__(self, input_dim, attention_dim):
