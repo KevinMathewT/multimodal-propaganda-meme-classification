@@ -37,7 +37,8 @@ from sklearn.metrics import f1_score
 from transformers import get_linear_schedule_with_warmup
 
 # text_model = "aubmindlab/bert-base-arabertv2"
-text_model = "distilbert-base-multilingual-cased"
+# text_model = "distilbert-base-multilingual-cased"
+text_model = "FacebookAI/xlm-roberta-base"
 # text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
 image_model = 'efficientnet_b5'
 # image_model = "resnet50"
