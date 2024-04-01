@@ -58,7 +58,7 @@ def _read_gold_and_pred(gold_fpath, pred_fpath):
             # labels.append(pred_label)
 
     diff = set(gold_labels).difference([tup[0] for tup in line_score])
-    rev_diff = set([tup[0] for tup in line_score]).difference(gold_labels)
+    rev_diff = set([tup[0] for tup in line_score]).difference(gold_labels.keys())
     if len(diff) != 0:
         logging.error(f'Difference: {diff}')
         logging.error(f'Reverse Difference: {rev_diff}')
