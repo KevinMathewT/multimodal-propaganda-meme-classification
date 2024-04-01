@@ -17,8 +17,6 @@ else:
     scaler = None
 
 learning_rate = 5e-5
-num_train_epochs = 20
-train_max_seq_len = 512
 max_train_samples = None
 max_eval_samples = None
 max_predict_samples = None
@@ -362,7 +360,7 @@ nets = {
 }
 
 
-image_model = "ViTBase16_BH"
+image_model = "ViTBase16"
 # image_model = "resnet50"
 print(f"Image Model: {image_model}")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -515,7 +513,7 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(
     model.parameters(), lr=learning_rate, weight_decay=1e-5, amsgrad=False
 )
-num_epochs = 5
+num_epochs = 20
 total_steps = len(train_df) * num_epochs
 warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
 scheduler = get_linear_schedule_with_warmup(

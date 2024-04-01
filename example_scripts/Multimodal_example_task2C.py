@@ -17,7 +17,6 @@ else:
     scaler = None
 
 learning_rate = 5e-5
-num_train_epochs = 20
 train_max_seq_len = 512
 max_train_samples = None
 max_eval_samples = None
