@@ -47,13 +47,13 @@ class MultimodalDataset(Dataset):
         self.transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),  # Resize the image to 224x224
-                transforms.RandomHorizontalFlip(),  # Apply horizontal flip randomly
+                # transforms.RandomHorizontalFlip(),  # Apply horizontal flip randomly
                 transforms.ColorJitter(
                     brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1
                 ),  # Randomly change brightness, contrast, and saturation
-                transforms.RandomRotation(
-                    degrees=15
-                ),  # Randomly rotate the image to a certain degree
+                # transforms.RandomRotation(
+                #     degrees=15
+                # ),  # Randomly rotate the image to a certain degree
                 transforms.ToTensor(),
                 transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
