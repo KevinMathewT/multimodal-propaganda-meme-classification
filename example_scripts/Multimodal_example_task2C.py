@@ -455,7 +455,7 @@ def train(
     train_loss = 0.0
     correct = 0
     total_batches = len(train_loader)
-    check_interval = total_batches // 10
+    check_interval = total_batches // 1
     batch_losses = []
 
     for batch_idx, data in enumerate(train_loader, 1):
