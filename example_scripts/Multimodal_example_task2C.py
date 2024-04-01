@@ -317,8 +317,6 @@ class MCA(nn.Module):
         # hidden_with_time_axis shape == (batch_size, 1, hidden_size)
         image_features_with_time_axis = image_features.unsqueeze(1)
 
-        print(f"text features size: {text_features.size()} | image features size: {image_features.size()}")
-
         score = torch.tanh(self.W1(text_features) + self.W2(image_features_with_time_axis))
 
         attention_weights = F.softmax(self.V(score), dim=1)
