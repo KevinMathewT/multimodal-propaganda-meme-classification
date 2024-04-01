@@ -362,7 +362,7 @@ nets = {
 }
 
 
-image_model = "SEResNeXt50_32x4d_BH"
+image_model = "ViTBase16_BH"
 # image_model = "resnet50"
 print(f"Image Model: {image_model}")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -378,7 +378,7 @@ def train(
     train_loss = 0.0
     correct = 0
     total_batches = len(train_loader)
-    check_interval = total_batches // 5
+    check_interval = total_batches // 1
     batch_losses = []
 
     for batch_idx, data in enumerate(train_loader, 1):
