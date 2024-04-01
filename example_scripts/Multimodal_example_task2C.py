@@ -483,7 +483,7 @@ def train(
             loss = criterion(output, labels)
             loss.backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
-            max_grad_norm = 1.0  # Adjust the threshold as needed
+            max_grad_norm = 10.0  # Adjust the threshold as needed
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
             optimizer.step()
 
