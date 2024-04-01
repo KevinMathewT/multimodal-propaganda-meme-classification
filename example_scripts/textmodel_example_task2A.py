@@ -159,7 +159,7 @@ train_df = torch.utils.data.DataLoader(
     train_df, batch_size=8, shuffle=True, drop_last=True
 )
 validation_df = torch.utils.data.DataLoader(
-    validation_df, batch_size=8, shuffle=True, drop_last=True
+    validation_df, batch_size=8, shuffle=True, drop_last=False
 )
 
 import torch
