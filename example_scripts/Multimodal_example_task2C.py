@@ -406,7 +406,6 @@ class MultimodalClassifier(nn.Module):
             nn.BatchNorm1d(512),
             nn.ReLU(),
         )
-        print(f"in features after: {self.image_model.classifier.in_features}")
 
         self.fusion_method = fusion_method
         if fusion_method == "concatenation":
