@@ -40,7 +40,7 @@ from transformers import get_linear_schedule_with_warmup
 # text_model = "distilbert-base-multilingual-cased"
 text_model = "FacebookAI/xlm-roberta-base"
 # text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
-image_model = 'efficientnet_b5'
+image_model = "efficientnet_b5"
 # image_model = "resnet50"
 print(f"Image Model: {image_model} | Text Model: {text_model}")
 
@@ -236,7 +236,6 @@ class LLMWithClassificationHead(nn.Module):
                 padding=cnn_kernel_size // 2,
             )
 
-
     def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
 
@@ -298,10 +297,17 @@ class ConcatAttention(nn.Module):
     def __init__(self, input_dim, attention_dim):
         super(ConcatAttention, self).__init__()
         self.attention_layer = nn.Sequential(
-            nn.Linear(input_dim, input_dim), nn.Softmax(dim=1)
+            nn.Linear(input_dim, input_dim),
+            nn.BatchNorm1d(input_dim),
+            nn.ReLU(),
+            nn.Softmax(dim=1),
         )
 
-        self.reduce = nn.Linear(input_dim, attention_dim)
+        self.reduce = nn.Sequential(
+            nn.Linear(input_dim, attention_dim),
+            nn.BatchNorm1d(attention_dim),
+            nn.ReLU(),
+        )
 
     def forward(self, text_features, image_features):
         concatenated_features = torch.cat((text_features, image_features), dim=1)
@@ -321,6 +327,7 @@ class CrossModalAttention(nn.Module):
         self.image_to_text_attention = nn.MultiheadAttention(
             embed_dim=feature_dim, num_heads=num_heads
         )
+        self.bn = nn.BatchNorm1d(feature_dim)
 
     def forward(self, text_features, image_features):
         # Reshape features to have batch dimension
@@ -345,6 +352,7 @@ class CrossModalAttention(nn.Module):
         combined_features = (
             attended_text_features.sum(dim=0) + attended_image_features.sum(dim=0)
         ) / 2
+        combined_features = self.bn(combined_features)
 
         return combined_features
 
@@ -355,6 +363,7 @@ class SelfAttentionFusion(nn.Module):
         self.attention = nn.MultiheadAttention(
             embed_dim=feature_dim, num_heads=num_heads
         )
+        self.bn = nn.BatchNorm1d(feature_dim)
 
     def forward(self, text_features, image_features):
         # Concatenate features from both modalities
@@ -364,7 +373,8 @@ class SelfAttentionFusion(nn.Module):
         # Apply multi-head attention
         attended_features, _ = self.attention(features, features, features)
         # You might want to combine or process these features further
-        combined_features = attended_features.sum(dim=0)  # Simple sum for demonstration
+        combined_features = attended_features.sum(dim=0)
+        combined_features = self.bn(combined_features)
         return combined_features
 
 
@@ -384,12 +394,18 @@ class MultimodalClassifier(nn.Module):
         text_hidden_size = 768
 
         # Fully connected layer for text features
-        self.text_fc = nn.Linear(text_hidden_size, 512)
+        self.text_fc = nn.Sequential(
+            nn.Linear(text_hidden_size, 512), nn.BatchNorm1d(512), nn.ReLU()
+        )
 
         # Initialize image model from a pre-trained model
         self.image_model = timm.create_model(image_model_name, pretrained=True)
         print(f"in features before: {self.image_model.classifier.in_features}")
-        self.image_model.classifier = nn.Linear(self.image_model.classifier.in_features, 512)
+        self.image_model.classifier = nn.Sequential(
+            nn.Linear(self.image_model.classifier.in_features, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+        )
         print(f"in features after: {self.image_model.classifier.in_features}")
 
         self.fusion_method = fusion_method
@@ -407,7 +423,9 @@ class MultimodalClassifier(nn.Module):
             if fusion_method in ["concatenation", "cross_modal", "self_attention"]
             else 512
         )
-        self.output_fc = nn.Linear(fusion_output_size, num_classes)
+        self.output_fc = nn.Sequential(
+            nn.Linear(fusion_output_size, num_classes), nn.BatchNorm1d(num_classes)
+        )
 
     def get_params(self, lr):
         attention_params = []
