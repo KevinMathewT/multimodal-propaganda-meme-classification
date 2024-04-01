@@ -43,6 +43,7 @@ image_model = "efficientnet_b5"
 # image_model = "resnet50"
 print(f"Image Model: {image_model} | Text Model: {text_model}")
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class MultimodalDataset(Dataset):
     def __init__(self, ids, text_data, image_data, labels, is_test=False):
@@ -145,8 +146,14 @@ def read_data(fpath, is_test=False):
 
 l2id = {"not_propaganda": 0, "propaganda": 1}
 
+from sklearn.utils.class_weight import compute_class_weight
+
 train_df = read_data(train_file)
 train_df["label"] = train_df["label"].map(l2id)
+class_labels = train_df["label"].tolist()
+class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(class_labels), y=class_labels)
+class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
+print(f"class weights: {class_weights}")
 train_df = MultimodalDataset(
     train_df["id"], train_df["text"], train_df["image"], train_df["label"]
 )
@@ -619,7 +626,7 @@ def evaluate(model, test_loader, device):
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = MultimodalClassifier(num_classes=2, fusion_method=fusion_method)
 model.to(device)
-criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss(weight=class_weights)
 optimizer = optim.Adam(model.get_params(learning_rate))
 num_epochs = 5
 total_steps = len(train_df) * num_epochs
