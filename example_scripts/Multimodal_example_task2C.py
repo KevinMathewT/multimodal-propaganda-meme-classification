@@ -588,6 +588,7 @@ def test(model, test_loader, criterion, device, epoch):
 
 
 def evaluate(model, test_loader, device):
+    print(f"len of test_loder: {len(test_loader)}")
     model.eval()
     predictions = []
     y_test_pred = []
