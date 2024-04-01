@@ -161,19 +161,21 @@ validation_df = MultimodalDataset(
     validation_df["label"],
 )
 
+print("validation_df len:", len(validation_df))
+
 # test_df = read_data(test_file)
 # #test_df['label'] = test_df['label'].map(l2id)
 # test_df = MultimodalDataset(test_df['id'], test_df['text'], test_df['image']) #, test_df['label']
 
 
-if max_train_samples is not None:
-    max_train_samples_n = min(len(train_df), max_train_samples)
-    train_df = train_df.select(range(max_train_samples_n))
+# if max_train_samples is not None:
+#     max_train_samples_n = min(len(train_df), max_train_samples)
+#     train_df = train_df.select(range(max_train_samples_n))
 
 
-if max_eval_samples is not None:
-    max_eval_samples_n = min(len(validation_df), max_eval_samples)
-    validation_df = validation_df.select(range(max_eval_samples_n))
+# if max_eval_samples is not None:
+#     max_eval_samples_n = min(len(validation_df), max_eval_samples)
+#     validation_df = validation_df.select(range(max_eval_samples_n))
 
 
 # if max_predict_samples is not None:
