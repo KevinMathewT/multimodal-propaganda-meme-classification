@@ -449,7 +449,7 @@ class MultimodalClassifier(nn.Module):
         if fusion_method == "concatenation":
             self.fusion_layer = ConcatAttention(1024, 512)
         elif fusion_method == "mca":
-            self.fusion_layer = MCA()
+            self.fusion_layer = MCA(512)
         elif fusion_method == "cross_modal":
             self.fusion_layer = CrossModalAttention(512)
         elif fusion_method == "self_attention":
