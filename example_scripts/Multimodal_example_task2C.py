@@ -322,15 +322,15 @@ class MCA(nn.Module):
         attention_weights = F.softmax(self.V(score), dim=1)
 
         context_vector1 = attention_weights * text_features
-        context_vector2 = attention_weights * image_features_with_time_axis
+        # context_vector2 = attention_weights * image_features_with_time_axis
 
         context_vector1 = torch.sum(context_vector1, dim=1)
-        context_vector2 = torch.sum(context_vector2, dim=1)
-        context_vector = torch.cat([context_vector1, context_vector2], dim=1)
+        # context_vector2 = torch.sum(context_vector2, dim=1)
+        # context_vector = torch.cat([context_vector1, context_vector2], dim=1)
 
-        context_vector = self.reduce(context_vector)
+        # context_vector = self.reduce(context_vector)
 
-        return context_vector
+        return context_vector1
 
 class ConcatAttention(nn.Module):
     def __init__(self, input_dim, attention_dim):
