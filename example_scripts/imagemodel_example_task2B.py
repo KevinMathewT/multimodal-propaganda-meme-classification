@@ -510,7 +510,7 @@ def evaluate(model, test_loader, device):
 
     team_name = "kevinmathew"
     fname = f"task2B_{team_name}.tsv"
-    run_id = f"{team_name}_{image_model}_{"binary_head"}.tsv"
+    run_id = f"{team_name}_{image_model}_binary_head.tsv"
 
     with open(fname, "w") as f:
         f.write("id\tlabel\trun_id\n")
