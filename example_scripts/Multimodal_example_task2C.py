@@ -249,6 +249,8 @@ class LLMWithClassificationHead(nn.Module):
 
         if self.pooling_type == "cls":
             pooled_output = self.cls_pooling(outputs)
+        if self.pooling_type == "nopooling":
+            pooled_output = self.last_hidden_state(outputs)
         elif self.pooling_type == "max":
             pooled_output = self.max_pooling(outputs)
         elif self.pooling_type == "mean":
@@ -262,6 +264,9 @@ class LLMWithClassificationHead(nn.Module):
 
         return pooled_output  # Keep return statement for scenarios without labels
 
+    def last_hidden_state(self, outputs):
+        return outputs.last_hidden_state
+    
     def cls_pooling(self, outputs):
         return outputs.last_hidden_state[:, 0]
 
@@ -298,8 +303,33 @@ class LLMWithClassificationHead(nn.Module):
         return pooled_output
 
 
-pooling_type = "cls"
+pooling_type = "nopooling"
 
+class MCA(nn.Module):
+    def __init__(self, units):
+        super(MCA, self).__init__()
+        self.W1 = nn.Linear(units, units)
+        self.W2 = nn.Linear(units, units)
+        self.V = nn.Linear(units, 1)
+
+    def forward(self, text_features, image_features):
+        # hidden_with_time_axis shape == (batch_size, 1, hidden_size)
+        image_features_with_time_axis = image_features.unsqueeze(1)
+
+        print(f"text features size: {text_features.size()} | image features size: {image_features.size()}")
+
+        score = torch.tanh(self.W1(text_features) + self.W2(image_features_with_time_axis))
+
+        attention_weights = F.softmax(self.V(score), dim=1)
+
+        context_vector1 = attention_weights * text_features
+        context_vector2 = attention_weights * image_features_with_time_axis
+
+        context_vector1 = torch.sum(context_vector1, dim=1)
+        context_vector2 = torch.sum(context_vector2, dim=1)
+        context_vector = torch.cat([context_vector1, context_vector2], dim=1)
+
+        return context_vector, attention_weights
 
 class ConcatAttention(nn.Module):
     def __init__(self, input_dim, attention_dim):
@@ -386,7 +416,7 @@ class SelfAttentionFusion(nn.Module):
         return combined_features
 
 
-fusion_method = "self_attention"  # ['concatenation', 'cross_modal', 'self_attention']
+fusion_method = "mca"  # ['mca', 'concatenation', 'cross_modal', 'self_attention']
 print(f"Using Fusion: {fusion_method}")
 
 
@@ -395,7 +425,7 @@ class MultimodalClassifier(nn.Module):
         super(MultimodalClassifier, self).__init__()
 
         # Initialize text model from a pre-trained model
-        self.text_model = model = LLMWithClassificationHead(
+        self.text_model = LLMWithClassificationHead(
             model_name=text_model, pooling_type=pooling_type
         )
         self.text_dropout = nn.Dropout(0.3)
@@ -418,6 +448,8 @@ class MultimodalClassifier(nn.Module):
         self.fusion_method = fusion_method
         if fusion_method == "concatenation":
             self.fusion_layer = ConcatAttention(1024, 512)
+        elif fusion_method == "mca":
+            self.fusion_layer = MCA()
         elif fusion_method == "cross_modal":
             self.fusion_layer = CrossModalAttention(512)
         elif fusion_method == "self_attention":
