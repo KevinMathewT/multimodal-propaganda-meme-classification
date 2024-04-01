@@ -57,9 +57,11 @@ def _read_gold_and_pred(gold_fpath, pred_fpath):
             line_score.append((id, pred_label))
             # labels.append(pred_label)
 
-
-    if len(set(gold_labels).difference([tup[0] for tup in line_score])) != 0:
-        logging.error(f'Difference: {set(gold_labels).difference([tup[0] for tup in line_score])}')
+    diff = set(gold_labels).difference([tup[0] for tup in line_score])
+    rev_diff = set([tup[0] for tup in line_score]).difference(gold_labels)
+    if len(diff) != 0:
+        logging.error(f'Difference: {diff}')
+        logging.error(f'Reverse Difference: {rev_diff}')
         logging.error('The predictions do not match the lines from the gold file - missing or extra line_no')
         raise ValueError('The predictions do not match the lines from the gold file - missing or extra line_no')
 
