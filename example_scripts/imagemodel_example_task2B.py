@@ -46,7 +46,7 @@ class MultimodalDataset(Dataset):
         self.labels = labels
         self.transform = transforms.Compose(
             [
-                transforms.Resize((224, 224)),  # Resize the image to 224x224
+                transforms.Resize((384, 384)),  # Resize the image to 224x224
                 # transforms.RandomHorizontalFlip(),  # Apply horizontal flip randomly
                 transforms.ColorJitter(
                     brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1
