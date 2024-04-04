@@ -375,7 +375,7 @@ image_model = "EfficientNetB"
 # image_model = "resnet50"
 print(f"Image Model: {image_model}")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = nets[image_model](b=0)
+model = nets[image_model](b=1)
 model.to(device)
 
 
