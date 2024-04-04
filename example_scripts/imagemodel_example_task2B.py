@@ -331,6 +331,21 @@ class EfficientNetB3(nn.Module):
     def forward(self, x):
         x = self.net(x)
         return x
+    
+
+class EfficientNetB(nn.Module):
+
+    def __init__(self, b, pretrained=True):
+        super().__init__()
+        name = f"EfficientNetB{b}"
+        self.model_arch = f"tf_efficientnet_b{b}_ns"
+        self.net = timm.create_model(self.model_arch, pretrained=pretrained)
+        n_features = self.net.classifier.in_features
+        self.net.classifier = nn.Linear(n_features, 2)
+
+    def forward(self, x):
+        x = self.net(x)
+        return x
 
 
 class GeneralizedMemesClassifier(nn.Module):
@@ -357,14 +372,15 @@ nets = {
     "ViTLarge16": ViTLarge16,
     "EfficientNetB4": EfficientNetB4,
     "EfficientNetB3": EfficientNetB3,
+    "EfficientNetB": EfficientNetB,
 }
 
 
-image_model = "ViTBase16"
+image_model = "EfficientNetB"
 # image_model = "resnet50"
 print(f"Image Model: {image_model}")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = nets[image_model]()
+model = nets[image_model](b=0)
 model.to(device)
 
 
