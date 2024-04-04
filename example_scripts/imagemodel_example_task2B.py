@@ -147,11 +147,6 @@ print("validation_df len:", len(validation_df))
 #     max_predict_samples_n = min(len(test_df), max_predict_samples)
 #     predict_dataset = test_df.select(range(max_predict_samples_n))
 
-import random
-
-for index in random.sample(range(len(train_df)), 3):
-    print(f"Sample {index} of the training set: {train_df[index]}.")
-
 train_df = torch.utils.data.DataLoader(
     train_df, batch_size=batch_size, shuffle=True, drop_last=True
 )
