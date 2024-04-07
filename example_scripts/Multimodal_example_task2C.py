@@ -136,7 +136,7 @@ class MultimodalDataset(Dataset):
         )
 
         caption_text = self.english_tokenizer.encode_plus(
-            text,
+            caption,
             add_special_tokens=True,
             max_length=train_max_seq_len,
             padding="max_length",
