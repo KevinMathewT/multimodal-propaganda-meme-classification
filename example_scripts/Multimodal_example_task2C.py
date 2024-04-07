@@ -358,7 +358,7 @@ class LLMWithClassificationHead(nn.Module):
         return pooled_output
 
 
-pooling_type = "nopooling"
+pooling_type = "cls"
 
 class MCA(nn.Module):
     def __init__(self, units):
