@@ -624,7 +624,8 @@ class MultimodalClassifier(nn.Module):
         else:
             raise ValueError(f"Unsupported fusion method: {self.fusion_method}")
 
-        output = self.output_fc(fused_output)
+        output: torch.Tensor = self.output_fc(fused_output)
+        output.squeeze_(1)
 
         return output
 
