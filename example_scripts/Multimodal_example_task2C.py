@@ -91,10 +91,22 @@ class MultimodalDataset(Dataset):
 
     def precompute_captions(self):
         conditional_gen_text = "a meme of"
-        print("Precomputing captions...")
-        captions = self.image_cap.generate_caption(images=[Image.open(img_path).convert("RGB") for img_path in self.image_data], texts=[conditional_gen_text]*len(self.image_data))
-        print("Done.")
+        batch_size = 64  # Adjust based on your GPU memory and model size
+        total_images = len(self.image_data)
+        captions = []
+        
+        for start_idx in tqdm(range(0, total_images, batch_size)):
+            end_idx = min(start_idx + batch_size, total_images)
+            batch_images = [Image.open(self.image_data[i]).convert("RGB") for i in range(start_idx, end_idx)]
+            batch_texts = [conditional_gen_text] * len(batch_images)
+            
+            with torch.no_grad():  # Ensure no gradients are computed to save memory
+                batch_captions = self.image_cap.generate_caption(images=batch_images, texts=batch_texts)
+            print(batch_captions[0])
+            captions.extend(batch_captions)
+
         return captions
+
 
     def __len__(self):
         return len(self.labels)
