@@ -39,6 +39,7 @@ from transformers import get_linear_schedule_with_warmup
 text_model = "distilbert-base-multilingual-cased"
 # text_model = "FacebookAI/xlm-roberta-base"
 # text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
+english_text_model = "roberta-base"
 image_model = "efficientnet_b5"
 # image_model = "resnet50"
 print(f"Image Model: {image_model} | Text Model: {text_model}")
@@ -71,6 +72,9 @@ class MultimodalDataset(Dataset):
         self.tokenizer = AutoTokenizer.from_pretrained(
             text_model
         )  # bert-base-multilingual-uncased
+        self.english_tokenizer = AutoTokenizer.from_pretrained(
+            english_text_model
+        )
         self.transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),  # Resize the image to 224x224
@@ -119,10 +123,19 @@ class MultimodalDataset(Dataset):
         label = self.labels[index]
         caption = self.precalculated_captions[index]
         image = self.transform(Image.open(image).convert("RGB"))
-        text += ' ' + caption
+        # text += ' ' + caption
 
         # tokenize text data
         text = self.tokenizer.encode_plus(
+            text,
+            add_special_tokens=True,
+            max_length=train_max_seq_len,
+            padding="max_length",
+            return_attention_mask=True,
+            return_tensors="pt",
+        )
+
+        caption_text = self.english_tokenizer.encode_plus(
             text,
             add_special_tokens=True,
             max_length=train_max_seq_len,
@@ -137,8 +150,11 @@ class MultimodalDataset(Dataset):
             "id": id,
             "text": text["input_ids"].squeeze(0),
             "text_mask": text["attention_mask"].squeeze(0),
+            "caption_text": caption_text["input_ids"].squeeze(0),
+            "caption_text_mask": caption_text["attention_mask"].squeeze(0),
             "image": image,
         }
+
         if not self.is_test:
             fdata["label"] = torch.tensor(label, dtype=torch.long)
             return fdata
@@ -370,6 +386,35 @@ class MCA(nn.Module):
         # context_vector = self.reduce(context_vector)
 
         return context_vector1
+    
+
+class MCA3(nn.Module):
+    def __init__(self, units):
+        super(MCA, self).__init__()
+        self.W1 = nn.Linear(units, units)
+        self.W2 = nn.Linear(units, units)
+        self.W3 = nn.Linear(units, units)
+        self.V = nn.Linear(units, 1)
+        self.reduce = nn.Linear(2 * units, units)
+
+    def forward(self, text_features, image_features, caption_features):
+        # hidden_with_time_axis shape == (batch_size, 1, hidden_size)
+        image_features_with_time_axis = image_features.unsqueeze(1)
+
+        score = torch.tanh(self.W1(text_features) + self.W2(image_features_with_time_axis) + self.W3(caption_features))
+
+        attention_weights = F.softmax(self.V(score), dim=1)
+
+        context_vector1 = attention_weights * text_features
+        context_vector2 = attention_weights * caption_features
+
+        context_vector1 = torch.sum(context_vector1, dim=1)
+        context_vector2 = torch.sum(context_vector2, dim=1)
+        context_vector = torch.cat([context_vector1, context_vector2], dim=1)
+
+        context_vector = self.reduce(context_vector)
+
+        return context_vector
 
 class ConcatAttention(nn.Module):
     def __init__(self, input_dim, attention_dim):
@@ -476,6 +521,17 @@ class MultimodalClassifier(nn.Module):
             nn.Linear(text_hidden_size, 512), nn.BatchNorm1d(512), nn.ReLU()
         )
 
+        self.caption_text_model = LLMWithClassificationHead(
+            model_name=english_text_model, pooling_type=pooling_type
+        )
+        self.caption_text_dropout = nn.Dropout(0.3)
+        caption_text_hidden_size = 768
+
+        # Fully connected layer for text features
+        self.caption_text_fc = nn.Sequential(
+            nn.Linear(caption_text_hidden_size, 512), nn.BatchNorm1d(512), nn.ReLU()
+        )
+
         # Initialize image model from a pre-trained model
         self.image_model = timm.create_model(image_model_name, pretrained=True)
         print(f"in features before: {self.image_model.classifier.in_features}")
@@ -489,7 +545,7 @@ class MultimodalClassifier(nn.Module):
         if fusion_method == "concatenation":
             self.fusion_layer = ConcatAttention(1024, 512)
         elif fusion_method == "mca":
-            self.fusion_layer = MCA(512)
+            self.fusion_layer = MCA3(512)
         elif fusion_method == "cross_modal":
             self.fusion_layer = CrossModalAttention(512)
         elif fusion_method == "self_attention":
@@ -527,15 +583,19 @@ class MultimodalClassifier(nn.Module):
             {"params": image_model_params, "lr": lr * 0.8},
         ]
 
-    def forward(self, text, image, mask):
+    def forward(self, text, image, mask, caption_text, caption_text_mask):
         text_output = self.text_model(text, attention_mask=mask)
         text_output = self.text_dropout(text_output)
         text_output = self.text_fc(text_output)
 
+        caption_text_output = self.caption_text_model(caption_text, attention_mask=caption_text_mask)
+        caption_text_output = self.caption_text_dropout(caption_text_output)
+        caption_text_output = self.caption_text_fc(caption_text_output)
+
         image_output = self.image_model(image)
 
         if hasattr(self, "fusion_layer"):
-            fused_output = self.fusion_layer(text_output, image_output)
+            fused_output = self.fusion_layer(text_output, image_output, caption_text_output)
         else:
             raise ValueError(f"Unsupported fusion method: {self.fusion_method}")
 
@@ -559,9 +619,11 @@ def train(
         optimizer.zero_grad()
         if USE_FP16:
             with autocast():
-                text = data["text"].to(device)
                 image = data["image"].to(device)
+                text = data["text"].to(device)
                 mask = data["text_mask"].to(device)
+                caption_text = data["caption_text"].to(device)
+                caption_text_mask = data["caption_text_mask"].to(device)
                 labels = data["label"].to(device)
                 output = model(text, image, mask)
                 loss = criterion(output, labels)
@@ -572,11 +634,13 @@ def train(
             scaler.step(optimizer)
             scaler.update()
         else:
-            text = data["text"].to(device)
             image = data["image"].to(device)
+            text = data["text"].to(device)
             mask = data["text_mask"].to(device)
+            caption_text = data["caption_text"].to(device)
+            caption_text_mask = data["caption_text_mask"].to(device)
             labels = data["label"].to(device)
-            output = model(text, image, mask)
+            output = model(text, image, mask, caption_text, caption_text_mask)
             loss = criterion(output, labels)
             loss.backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
