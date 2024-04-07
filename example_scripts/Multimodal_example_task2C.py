@@ -284,7 +284,7 @@ class LLMWithClassificationHead(nn.Module):
         self.model = AutoModel.from_pretrained(model_name)
         self.pooling_type = pooling_type
         self.hidden_size = hidden_size
-        print(self.pooling_type)
+        print("Pooling Type:", self.pooling_type)
 
         if pooling_type == "attention":
             self.attention = nn.Sequential(
@@ -305,7 +305,7 @@ class LLMWithClassificationHead(nn.Module):
 
         if self.pooling_type == "cls":
             pooled_output = self.cls_pooling(outputs)
-        if self.pooling_type == "nopooling":
+        elif self.pooling_type == "nopooling":
             pooled_output = self.last_hidden_state(outputs)
         elif self.pooling_type == "max":
             pooled_output = self.max_pooling(outputs)
