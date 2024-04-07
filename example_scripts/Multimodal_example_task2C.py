@@ -390,7 +390,7 @@ class MCA(nn.Module):
 
 class MCA3(nn.Module):
     def __init__(self, units):
-        super(MCA, self).__init__()
+        super(MCA3, self).__init__()
         self.W1 = nn.Linear(units, units)
         self.W2 = nn.Linear(units, units)
         self.W3 = nn.Linear(units, units)
