@@ -612,7 +612,7 @@ def train(
     train_loss = 0.0
     correct = 0
     total_batches = len(train_loader)
-    check_interval = total_batches // 5
+    check_interval = total_batches // 2
     batch_losses = []
 
     for batch_idx, data in enumerate(train_loader, 1):
@@ -770,7 +770,7 @@ model = MultimodalClassifier(num_classes=2, fusion_method=fusion_method)
 model.to(device)
 criterion = nn.CrossEntropyLoss(weight=class_weights)
 optimizer = optim.Adam(model.get_params(learning_rate))
-num_epochs = 5
+num_epochs = 20
 total_steps = len(train_df) * num_epochs
 warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
 scheduler = get_linear_schedule_with_warmup(
