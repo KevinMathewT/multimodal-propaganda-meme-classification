@@ -91,7 +91,9 @@ class MultimodalDataset(Dataset):
 
     def precompute_captions(self):
         conditional_gen_text = "a meme of"
+        print("Precomputing captions...")
         captions = self.image_cap.generate_caption(images=[Image.open(img_path).convert("RGB") for img_path in self.image_data], texts=[conditional_gen_text]*len(self.image_data))
+        print("Done.")
         return captions
 
     def __len__(self):
