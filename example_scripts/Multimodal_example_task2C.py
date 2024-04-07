@@ -358,9 +358,6 @@ class LLMWithClassificationHead(nn.Module):
         return pooled_output
 
 
-pooling_type = "cls"
-print(f"Used Pooling: {pooling_type}")
-
 class MCA(nn.Module):
     def __init__(self, units):
         super(MCA, self).__init__()
@@ -538,7 +535,7 @@ class MultimodalClassifier(nn.Module):
 
         # Initialize text model from a pre-trained model
         self.text_model = LLMWithClassificationHead(
-            model_name=text_model, pooling_type=pooling_type
+            model_name=text_model, pooling_type='cls'
         )
         self.text_dropout = nn.Dropout(0.3)
         text_hidden_size = 768
@@ -549,7 +546,7 @@ class MultimodalClassifier(nn.Module):
         )
 
         self.caption_text_model = LLMWithClassificationHead(
-            model_name=english_text_model, pooling_type=pooling_type
+            model_name=english_text_model, pooling_type='cls'
         )
         self.caption_text_dropout = nn.Dropout(0.3)
         caption_text_hidden_size = 768
