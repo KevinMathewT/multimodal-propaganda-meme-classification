@@ -651,6 +651,7 @@ def train(
                 caption_text_mask = data["caption_text_mask"].to(device)
                 labels = data["label"].to(device)
                 output = model(text, image, mask, caption_text, caption_text_mask)
+                print(f"output: {output} \n####\n labels: {labels}\n###")
                 loss = criterion(output, labels, alpha=0.25, gamma=2.0, reduction='mean')
             scaler.scale(loss).backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
