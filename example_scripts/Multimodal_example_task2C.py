@@ -443,7 +443,7 @@ class ConcatAttention(nn.Module):
 
 class ConcatAttention3(nn.Module):
     def __init__(self, input_dim, attention_dim):
-        super(ConcatAttention, self).__init__()
+        super(ConcatAttention3, self).__init__()
         self.attention_layer = nn.Sequential(
             nn.Linear(input_dim, input_dim),
             nn.BatchNorm1d(input_dim),
