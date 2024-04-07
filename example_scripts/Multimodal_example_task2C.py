@@ -56,6 +56,7 @@ class ImageCaptioning:
     def generate_caption(self, images, texts):
         inputs = self.processor(images, texts, return_tensors="pt", padding=True).to("cuda", torch.float16)
         captions = self.model.generate(**inputs)
+        captions = self.processor.decode(captions[0], skip_special_tokens=True)
 
         return captions
 
