@@ -678,7 +678,12 @@ def train(
         scheduler.step()
         train_loss += loss.item() * labels.size(0)
         batch_losses.append(loss.item())  # Append the loss for the current batch
-        _, predicted = torch.max(output, 1)
+        print(f"output size: {output.size()} | {output.dim()}")
+        if output.dim() == 1:  # Binary classification
+            prob = torch.sigmoid(output)
+            predicted = (prob > 0.5).float()
+        else:  # Multiclass classification
+            _, predicted = torch.max(output, 1)
         correct += (predicted == labels).sum().item()
 
         if batch_idx % 10 == 0:
@@ -743,7 +748,11 @@ def test(model, test_loader, criterion, device, epoch):
                 loss = criterion(output, labels, alpha=0.25, gamma=2.0, reduction='mean')
 
             test_loss += loss.item() * labels.size(0)
-            _, predicted = torch.max(output, 1)
+            if output.dim() == 1:  # Binary classification
+                prob = torch.sigmoid(output)
+                predicted = (prob > 0.5).float()
+            else:  # Multiclass classification
+                _, predicted = torch.max(output, 1)
             correct += (predicted == labels).sum().item()
             true_labels.extend(labels.cpu().numpy())
             predicted_labels.extend(predicted.cpu().numpy())
@@ -775,7 +784,11 @@ def evaluate(model, test_loader, device):
             caption_text = data["caption_text"].to(device)
             caption_text_mask = data["caption_text_mask"].to(device)
             output = model(text, image, mask, caption_text, caption_text_mask)
-            _, predicted = torch.max(output, 1)
+            if output.dim() == 1:  # Binary classification
+                prob = torch.sigmoid(output)
+                predicted = (prob > 0.5).float()
+            else:  # Multiclass classification
+                _, predicted = torch.max(output, 1)
             predictions.append(predicted)
             ids.append(data["id"])
 
