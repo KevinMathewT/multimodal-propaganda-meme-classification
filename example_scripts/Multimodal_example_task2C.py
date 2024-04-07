@@ -102,7 +102,6 @@ class MultimodalDataset(Dataset):
             
             with torch.no_grad():  # Ensure no gradients are computed to save memory
                 batch_captions = self.image_cap.generate_caption(images=batch_images, texts=batch_texts)
-            print(batch_captions[0])
             captions.extend(batch_captions)
 
         return captions
