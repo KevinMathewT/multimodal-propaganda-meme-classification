@@ -439,6 +439,31 @@ class ConcatAttention(nn.Module):
         attended_features = self.reduce(attended_features)
         # print(f"Sizes: {concatenated_features.size()} | {attention_weights.size()} | {attended_features.size()} | {attended_features.sum(dim=1).size()} |")
         return attended_features
+    
+
+class ConcatAttention3(nn.Module):
+    def __init__(self, input_dim, attention_dim):
+        super(ConcatAttention, self).__init__()
+        self.attention_layer = nn.Sequential(
+            nn.Linear(input_dim, input_dim),
+            nn.BatchNorm1d(input_dim),
+            nn.ReLU(),
+            nn.Softmax(dim=1),
+        )
+
+        self.reduce = nn.Sequential(
+            nn.Linear(input_dim, attention_dim),
+            nn.BatchNorm1d(attention_dim),
+            nn.ReLU(),
+        )
+
+    def forward(self, text_features, image_features, caption_features):
+        concatenated_features = torch.cat((text_features, image_features, caption_features), dim=1)
+        attention_weights = self.attention_layer(concatenated_features)
+        attended_features = attention_weights * concatenated_features
+        attended_features = self.reduce(attended_features)
+        # print(f"Sizes: {concatenated_features.size()} | {attention_weights.size()} | {attended_features.size()} | {attended_features.sum(dim=1).size()} |")
+        return attended_features
 
 
 class CrossModalAttention(nn.Module):
@@ -501,7 +526,7 @@ class SelfAttentionFusion(nn.Module):
         return combined_features
 
 
-fusion_method = "mca"  # ['mca', 'concatenation', 'cross_modal', 'self_attention']
+fusion_method = "concatenation"  # ['mca', 'concatenation', 'cross_modal', 'self_attention']
 print(f"Using Fusion: {fusion_method}")
 
 
@@ -543,7 +568,7 @@ class MultimodalClassifier(nn.Module):
 
         self.fusion_method = fusion_method
         if fusion_method == "concatenation":
-            self.fusion_layer = ConcatAttention(1024, 512)
+            self.fusion_layer = ConcatAttention3(3 * 512, 512)
         elif fusion_method == "mca":
             self.fusion_layer = MCA3(512)
         elif fusion_method == "cross_modal":
