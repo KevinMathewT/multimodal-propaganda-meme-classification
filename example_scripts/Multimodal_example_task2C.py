@@ -625,7 +625,7 @@ def train(
                 caption_text = data["caption_text"].to(device)
                 caption_text_mask = data["caption_text_mask"].to(device)
                 labels = data["label"].to(device)
-                output = model(text, image, mask)
+                output = model(text, image, mask, caption_text, caption_text_mask)
                 loss = criterion(output, labels)
             scaler.scale(loss).backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
@@ -697,18 +697,22 @@ def test(model, test_loader, criterion, device, epoch):
         for batch_idx, data in enumerate(test_loader, 1):
             if USE_FP16:
                 with autocast():
-                    text = data["text"].to(device)
                     image = data["image"].to(device)
+                    text = data["text"].to(device)
                     mask = data["text_mask"].to(device)
+                    caption_text = data["caption_text"].to(device)
+                    caption_text_mask = data["caption_text_mask"].to(device)
                     labels = data["label"].to(device)
-                    output = model(text, image, mask)
+                    output = model(text, image, mask, caption_text, caption_text_mask)
                     loss = criterion(output, labels)
             else:
-                text = data["text"].to(device)
                 image = data["image"].to(device)
+                text = data["text"].to(device)
                 mask = data["text_mask"].to(device)
+                caption_text = data["caption_text"].to(device)
+                caption_text_mask = data["caption_text_mask"].to(device)
                 labels = data["label"].to(device)
-                output = model(text, image, mask)
+                output = model(text, image, mask, caption_text, caption_text_mask)
                 loss = criterion(output, labels)
 
             test_loss += loss.item() * labels.size(0)
@@ -738,17 +742,19 @@ def evaluate(model, test_loader, device):
     ids = []
     with torch.no_grad():
         for data in tqdm(test_loader):
-            text = data["text"].to(device)
             image = data["image"].to(device)
+            text = data["text"].to(device)
             mask = data["text_mask"].to(device)
-            output = model(text, image, mask)
+            caption_text = data["caption_text"].to(device)
+            caption_text_mask = data["caption_text_mask"].to(device)
+            output = model(text, image, mask, caption_text, caption_text_mask)
             _, predicted = torch.max(output, 1)
             predictions.append(predicted)
             ids.append(data["id"])
 
     team_name = "kevinmathew"
     fname = f"task2C_{team_name}.tsv"
-    run_id = f"{team_name}_{image_model}_{text_model}_{fusion_method}.tsv"
+    run_id = f"{team_name}_{image_model}_{text_model}_{english_text_model}_{fusion_method}.tsv"
 
     with open(fname, "w") as f:
         f.write("id\tlabel\trun_id\n")
