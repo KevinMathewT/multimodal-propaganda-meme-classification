@@ -56,7 +56,7 @@ class ImageCaptioning:
     def generate_caption(self, images, texts):
         inputs = self.processor(images, texts, return_tensors="pt", padding=True).to("cuda", torch.float16)
         captions = self.model.generate(**inputs)
-        captions = self.processor.decode(captions[0], skip_special_tokens=True)
+        captions = [self.processor.decode(capt, skip_special_tokens=True) for capt in captions]
 
         return captions
 
@@ -85,7 +85,14 @@ class MultimodalDataset(Dataset):
                 transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
         )
+        # Initialize ImageCaptioning and precalculate captions
         self.image_cap = ImageCaptioning()
+        self.precalculated_captions = self.precompute_captions()
+
+    def precompute_captions(self):
+        conditional_gen_text = "a meme of"
+        captions = self.image_cap.generate_caption(images=[Image.open(img_path).convert("RGB") for img_path in self.image_data], texts=[conditional_gen_text]*len(self.image_data))
+        return captions
 
     def __len__(self):
         return len(self.labels)
@@ -96,9 +103,7 @@ class MultimodalDataset(Dataset):
         image = self.image_data[index]
         # if not self.is_test:
         label = self.labels[index]
-        conditional_gen_text = "a meme of"
-
-        caption = self.image_cap.generate_caption(images=Image.open(image).convert("RGB"), texts=conditional_gen_text)
+        caption = self.precalculated_captions[index]
         image = self.transform(Image.open(image).convert("RGB"))
         text += ' ' + caption
 
