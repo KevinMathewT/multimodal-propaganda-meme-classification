@@ -531,7 +531,7 @@ print(f"Using Fusion: {fusion_method}")
 
 
 class MultimodalClassifier(nn.Module):
-    def __init__(self, num_classes, fusion_method):
+    def __init__(self, fusion_method):
         super(MultimodalClassifier, self).__init__()
 
         # Initialize text model from a pre-trained model
@@ -584,7 +584,7 @@ class MultimodalClassifier(nn.Module):
             else 512
         )
         self.output_fc = nn.Sequential(
-            nn.Linear(fusion_output_size, num_classes), nn.BatchNorm1d(num_classes)
+            nn.Linear(fusion_output_size, 1), nn.BatchNorm1d(1)
         )
 
     def get_params(self, lr):
@@ -793,7 +793,7 @@ def evaluate(model, test_loader, device):
 from torchvision.ops import sigmoid_focal_loss
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = MultimodalClassifier(num_classes=2, fusion_method=fusion_method)
+model = MultimodalClassifier(fusion_method=fusion_method)
 model.to(device)
 # criterion = nn.CrossEntropyLoss(weight=class_weights)
 criterion = sigmoid_focal_loss
