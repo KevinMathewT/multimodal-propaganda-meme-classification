@@ -45,6 +45,20 @@ print(f"Image Model: {image_model} | Text Model: {text_model}")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+from transformers import BlipProcessor, BlipForConditionalGeneration
+
+class ImageCaptioning:
+    def __init__(self):
+        self.processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
+        self.model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large", torch_dtype=torch.float16).to("cuda")
+        self.model.eval()
+
+    def generate_caption(self, images, texts):
+        inputs = self.processor(images, texts, return_tensors="pt", padding=True).to("cuda", torch.float16)
+        captions = self.model.generate(**inputs)
+
+        return captions
+
 class MultimodalDataset(Dataset):
     def __init__(self, ids, text_data, image_data, labels, is_test=False):
         self.text_data = text_data
@@ -70,6 +84,7 @@ class MultimodalDataset(Dataset):
                 transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
         )
+        self.image_cap = ImageCaptioning()
 
     def __len__(self):
         return len(self.labels)
@@ -80,6 +95,11 @@ class MultimodalDataset(Dataset):
         image = self.image_data[index]
         # if not self.is_test:
         label = self.labels[index]
+        image = self.transform(Image.open(image).convert("RGB"))
+        conditional_gen_text = "a meme of"
+
+        caption = self.image_cap.generate_caption(images=image, texts=conditional_gen_text)
+        text += ' ' + caption
 
         # tokenize text data
         text = self.tokenizer.encode_plus(
@@ -92,13 +112,13 @@ class MultimodalDataset(Dataset):
         )
 
         # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        image = self.transform(Image.open(image).convert("RGB"))
 
         fdata = {
             "id": id,
             "text": text["input_ids"].squeeze(0),
             "text_mask": text["attention_mask"].squeeze(0),
             "image": image,
+            "conditional_gen_text": conditional_gen_text,
         }
         if not self.is_test:
             fdata["label"] = torch.tensor(label, dtype=torch.long)
@@ -524,7 +544,8 @@ def train(
                 image = data["image"].to(device)
                 mask = data["text_mask"].to(device)
                 labels = data["label"].to(device)
-                output = model(text, image, mask)
+                conditional_gen_text = data["conditional_gen_text"]
+                output = model(text, image, mask, conditional_gen_text)
                 loss = criterion(output, labels)
             scaler.scale(loss).backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
