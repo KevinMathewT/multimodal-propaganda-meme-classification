@@ -284,6 +284,7 @@ class LLMWithClassificationHead(nn.Module):
         self.model = AutoModel.from_pretrained(model_name)
         self.pooling_type = pooling_type
         self.hidden_size = hidden_size
+        print(self.pooling_type)
 
         if pooling_type == "attention":
             self.attention = nn.Sequential(
@@ -535,7 +536,7 @@ class MultimodalClassifier(nn.Module):
 
         # Initialize text model from a pre-trained model
         self.text_model = LLMWithClassificationHead(
-            model_name=text_model, pooling_type='cls'
+            model_name=text_model, pooling_type="cls"
         )
         self.text_dropout = nn.Dropout(0.3)
         text_hidden_size = 768
@@ -546,7 +547,7 @@ class MultimodalClassifier(nn.Module):
         )
 
         self.caption_text_model = LLMWithClassificationHead(
-            model_name=english_text_model, pooling_type='cls'
+            model_name=english_text_model, pooling_type="cls"
         )
         self.caption_text_dropout = nn.Dropout(0.3)
         caption_text_hidden_size = 768
