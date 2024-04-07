@@ -95,10 +95,10 @@ class MultimodalDataset(Dataset):
         image = self.image_data[index]
         # if not self.is_test:
         label = self.labels[index]
-        image = self.transform(Image.open(image).convert("RGB"))
         conditional_gen_text = "a meme of"
 
-        caption = self.image_cap.generate_caption(images=image, texts=conditional_gen_text)
+        caption = self.image_cap.generate_caption(images=Image.open(image).convert("RGB"), texts=conditional_gen_text)
+        image = self.transform(Image.open(image).convert("RGB"))
         text += ' ' + caption
 
         # tokenize text data
