@@ -359,6 +359,7 @@ class LLMWithClassificationHead(nn.Module):
 
 
 pooling_type = "cls"
+print(f"Used Pooling: {pooling_type}")
 
 class MCA(nn.Module):
     def __init__(self, units):
