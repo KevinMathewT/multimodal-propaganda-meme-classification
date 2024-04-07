@@ -88,6 +88,7 @@ class MultimodalDataset(Dataset):
         # Initialize ImageCaptioning and precalculate captions
         self.image_cap = ImageCaptioning()
         self.precalculated_captions = self.precompute_captions()
+        del self.image_cap
 
     def precompute_captions(self):
         conditional_gen_text = "a meme of"
