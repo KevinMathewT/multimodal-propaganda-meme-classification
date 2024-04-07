@@ -119,7 +119,6 @@ class MultimodalDataset(Dataset):
             "text": text["input_ids"].squeeze(0),
             "text_mask": text["attention_mask"].squeeze(0),
             "image": image,
-            "conditional_gen_text": conditional_gen_text,
         }
         if not self.is_test:
             fdata["label"] = torch.tensor(label, dtype=torch.long)
@@ -545,8 +544,7 @@ def train(
                 image = data["image"].to(device)
                 mask = data["text_mask"].to(device)
                 labels = data["label"].to(device)
-                conditional_gen_text = data["conditional_gen_text"]
-                output = model(text, image, mask, conditional_gen_text)
+                output = model(text, image, mask)
                 loss = criterion(output, labels)
             scaler.scale(loss).backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
