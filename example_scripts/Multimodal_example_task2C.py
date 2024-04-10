@@ -40,8 +40,8 @@ text_model = "aubmindlab/bert-base-arabertv2"
 # text_model = "FacebookAI/xlm-roberta-base"
 # text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
 english_text_model = "roberta-base"
-image_model = "efficientnet_b5"
-# image_model = "resnet50"
+# image_model = 'vit_base_patch16_224'
+image_model = "resnet50"
 print(f"Image Model: {image_model} | Text Model: {text_model}")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -537,7 +537,7 @@ class CustomDenseNet161(torch.nn.Module):
         super().__init__()
         self.freeze_cnn = freeze_cnn
         # self.image_model = models.densenet161(weights = "IMAGENET1K_V1")
-        self.image_model = timm.create_model('vit_base_patch16_224', pretrained=True)
+        self.image_model = timm.create_model(image_model, pretrained=True)
         self.image_model.reset_classifier(0)
         self.fine_tune = nn.Sequential(nn.Linear(in_features=768, out_features=512, bias=True),
                                          nn.ReLU(inplace=True),
@@ -583,14 +583,14 @@ class MultimodalClassifier(nn.Module):
         )
 
         # Initialize image model from a pre-trained model
-        # self.image_model = timm.create_model(image_model_name, pretrained=True)
-        # print(f"in features before: {self.image_model.classifier.in_features}")
-        # self.image_model.classifier = nn.Sequential(
-        #     nn.Linear(self.image_model.classifier.in_features, 512),
-        #     nn.BatchNorm1d(512),
-        #     nn.ReLU(),
-        # )
-        self.image_model = CustomDenseNet161(False)
+        self.image_model = timm.create_model(image_model_name, pretrained=True)
+        print(f"in features before: {self.image_model.classifier.in_features}")
+        self.image_model.classifier = nn.Sequential(
+            nn.Linear(self.image_model.classifier.in_features, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+        )
+        # self.image_model = CustomDenseNet161(False)
 
         self.fusion_method = fusion_method
         if fusion_method == "concatenation":
