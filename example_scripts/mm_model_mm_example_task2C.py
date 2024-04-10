@@ -34,15 +34,19 @@ from torchvision import transforms
 from transformers import AutoTokenizer, BertTokenizer
 from sklearn.metrics import f1_score
 from transformers import get_linear_schedule_with_warmup
-
-text_model = "aubmindlab/bert-base-arabertv2"
+import torch
+from transformers import ViTFeatureExtractor, ViTModel
+from PIL import Image
+# text_model = "aubmindlab/bert-base-arabertv2"
 # text_model = "distilbert-base-multilingual-cased"
 # text_model = "FacebookAI/xlm-roberta-base"
 # text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
-english_text_model = "roberta-base"
-image_model = "efficientnet_b5"
+# english_text_model = "roberta-base"
+# image_model = "efficientnet_b5"
 # image_model = "resnet50"
-print(f"Image Model: {image_model} | Text Model: {text_model}")
+feature_model = 'google/vit-base-patch16-224-in21k'
+mmmodel = 'uclanlp/visualbert-nlvr2-coco-pre'
+print(f"feature Model: {mmmodel} | Multimodal Model: {mmmodel}")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -69,12 +73,9 @@ class MultimodalDataset(Dataset):
         self.is_test = is_test
         # if not self.is_test:
         self.labels = labels
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            text_model
-        )  # bert-base-multilingual-uncased
-        self.english_tokenizer = AutoTokenizer.from_pretrained(
-            english_text_model
-        )
+        tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+        feature_extractor = ViTFeatureExtractor.from_pretrained(feature_model)
+        feature_model = ViTModel.from_pretrained(feature_model)
         self.transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),  # Resize the image to 224x224
@@ -529,36 +530,6 @@ class SelfAttentionFusion(nn.Module):
 fusion_method = "concatenation"  # ['mca', 'concatenation', 'cross_modal', 'self_attention']
 print(f"Using Fusion: {fusion_method}")
 
-import torchvision.models as models
-
-class CustomDenseNet161(torch.nn.Module):
-    
-    def __init__(self, num_class, freeze_cnn):
-        super().__init__()
-        self.num_class = num_class
-        self.freeze_cnn = freeze_cnn
-        self.densenet161 = models.densenet161(weights = "IMAGENET1K_V1")
-        self.fine_tune = nn.Sequential(nn.Linear(in_features=self.densenet161.classifier.out_features, out_features=512, bias=True),
-                                         nn.ReLU(inplace=True),
-                                         nn.Dropout(p=0.35),
-                                         nn.Linear(in_features=512, out_features=256, bias=True),
-                                         nn.ReLU(inplace=True),
-                                         nn.Dropout(p=0.35),
-                                         nn.Linear(in_features=256, out_features=128, bias=True),
-                                         nn.ReLU(inplace=True),
-                                         nn.Dropout(p=0.35),
-                                         nn.Linear(in_features=128, out_features=self.num_class, bias=True))
-#         self.densenet161.classifier = self.fine_tune
-
-        
-    def forward(self, x):
-        
-        if self.freeze_cnn:
-            self.densenet161.requires_grad_ = False
-            self.densenet161.classifier.requires_grad_ = True
-        x = self.densenet161(x)
-        x = self.fine_tune(x)
-        return x
 
 class MultimodalClassifier(nn.Module):
     def __init__(self, fusion_method):
@@ -588,14 +559,13 @@ class MultimodalClassifier(nn.Module):
         )
 
         # Initialize image model from a pre-trained model
-        # self.image_model = timm.create_model(image_model_name, pretrained=True)
-        # print(f"in features before: {self.image_model.classifier.in_features}")
-        # self.image_model.classifier = nn.Sequential(
-        #     nn.Linear(self.image_model.classifier.in_features, 512),
-        #     nn.BatchNorm1d(512),
-        #     nn.ReLU(),
-        # )
-        self.image_model = CustomDenseNet161(1, False)
+        self.image_model = timm.create_model(image_model_name, pretrained=True)
+        print(f"in features before: {self.image_model.classifier.in_features}")
+        self.image_model.classifier = nn.Sequential(
+            nn.Linear(self.image_model.classifier.in_features, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+        )
 
         self.fusion_method = fusion_method
         if fusion_method == "concatenation":
