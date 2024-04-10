@@ -533,21 +533,14 @@ import torchvision.models as models
 
 class CustomDenseNet161(torch.nn.Module):
     
-    def __init__(self, num_class, freeze_cnn):
+    def __init__(self, freeze_cnn):
         super().__init__()
-        self.num_class = num_class
         self.freeze_cnn = freeze_cnn
         self.densenet161 = models.densenet161(weights = "IMAGENET1K_V1")
         self.fine_tune = nn.Sequential(nn.Linear(in_features=self.densenet161.classifier.out_features, out_features=512, bias=True),
                                          nn.ReLU(inplace=True),
                                          nn.Dropout(p=0.35),
-                                         nn.Linear(in_features=512, out_features=256, bias=True),
-                                         nn.ReLU(inplace=True),
-                                         nn.Dropout(p=0.35),
-                                         nn.Linear(in_features=256, out_features=128, bias=True),
-                                         nn.ReLU(inplace=True),
-                                         nn.Dropout(p=0.35),
-                                         nn.Linear(in_features=128, out_features=self.num_class, bias=True))
+                                         nn.Linear(in_features=512, out_features=512, bias=True))
 #         self.densenet161.classifier = self.fine_tune
 
         
@@ -595,7 +588,7 @@ class MultimodalClassifier(nn.Module):
         #     nn.BatchNorm1d(512),
         #     nn.ReLU(),
         # )
-        self.image_model = CustomDenseNet161(1, False)
+        self.image_model = CustomDenseNet161(False)
 
         self.fusion_method = fusion_method
         if fusion_method == "concatenation":
