@@ -536,8 +536,10 @@ class CustomDenseNet161(torch.nn.Module):
     def __init__(self, freeze_cnn):
         super().__init__()
         self.freeze_cnn = freeze_cnn
-        self.densenet161 = models.densenet161(weights = "IMAGENET1K_V1")
-        self.fine_tune = nn.Sequential(nn.Linear(in_features=self.densenet161.classifier.out_features, out_features=512, bias=True),
+        # self.image_model = models.densenet161(weights = "IMAGENET1K_V1")
+        self.image_model = timm.create_model('vit_base_patch16_224', pretrained=True)
+        self.image_model.reset_classifier(0)
+        self.fine_tune = nn.Sequential(nn.Linear(in_features=768, out_features=512, bias=True),
                                          nn.ReLU(inplace=True),
                                          nn.Dropout(p=0.35),
                                          nn.Linear(in_features=512, out_features=512, bias=True))
@@ -546,9 +548,9 @@ class CustomDenseNet161(torch.nn.Module):
         
     def forward(self, x):
         
-        if self.freeze_cnn:
-            self.densenet161.requires_grad_ = False
-            self.densenet161.classifier.requires_grad_ = True
+        # if self.freeze_cnn:
+        #     self.densenet161.requires_grad_ = False
+        #     self.densenet161.classifier.requires_grad_ = True
         x = self.densenet161(x)
         x = self.fine_tune(x)
         return x
