@@ -584,9 +584,9 @@ class MultimodalClassifier(nn.Module):
 
         # Initialize image model from a pre-trained model
         self.image_model = timm.create_model(image_model_name, pretrained=True)
-        print(f"in features before: {self.image_model.classifier.in_features}")
+        # print(f"in features before: {self.image_model.classifier.in_features}")
         self.image_model.classifier = nn.Sequential(
-            nn.Linear(self.image_model.classifier.in_features, 512),
+            nn.Linear(768, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
         )
