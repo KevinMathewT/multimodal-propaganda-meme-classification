@@ -115,8 +115,8 @@ def setup(fold):
 
     test_df = read_data(test_file)
 
-    train_df.loc["label"] = train_df["label"].map(l2id)
-    val_df.loc["label"] = val_df["label"].map(l2id)
+    train_df["label"] = train_df["label"].map(l2id)
+    val_df["label"] = val_df["label"].map(l2id)
     test_df["label"] = test_df["label"].map(l2id)
 
     class_labels = train_df["label"].tolist()
