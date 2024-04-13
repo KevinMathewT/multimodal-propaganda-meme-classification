@@ -8,45 +8,132 @@
 # !pip install datasets
 # !pip install evaluate
 # !pip install --upgrade accelerate
-from torch.cuda.amp import autocast, GradScaler
-
-USE_FP16 = True  # Set to False for normal training
-if USE_FP16:
-    scaler = GradScaler()
-else:
-    scaler = None
-
-learning_rate = 1e-5
-train_max_seq_len = 512
-max_train_samples = None
-max_eval_samples = None
-max_predict_samples = None
-batch_size = 16
-best_macro_f1 = 0.0
 
 import csv
-
+import json
 import numpy as np
-import torch
+from tqdm import tqdm
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset
-from torchvision import transforms
-from transformers import AutoTokenizer, BertTokenizer
 from sklearn.metrics import f1_score
+from torch.cuda.amp import autocast, GradScaler
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+from torch.utils.data import DataLoader, Dataset
+
+import timm
+
+from torchvision import transforms
+from torchvision.ops import sigmoid_focal_loss
+
 from transformers import get_linear_schedule_with_warmup
-
-text_model = "aubmindlab/bert-base-arabertv2"
-# text_model = "distilbert-base-multilingual-cased"
-# text_model = "FacebookAI/xlm-roberta-base"
-# text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
-english_text_model = "roberta-base"
-# image_model = 'vit_base_patch16_224'
-image_model = "resnet50"
-print(f"Image Model: {image_model} | Text Model: {text_model}")
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+from transformers import AutoModel, BertModel, AutoTokenizer, BertTokenizer
 from transformers import BlipProcessor, BlipForConditionalGeneration
+
+def setup():
+    global USE_FP16, scaler, learning_rate, train_max_seq_len, max_train_samples, \
+           max_eval_samples, max_predict_samples, batch_size, best_macro_f1, \
+           text_model, english_text_model, image_model, fusion_method, device, \
+           model, criterion, optimizer, num_epochs, total_steps, warmup_steps, scheduler, \
+           train_df, validation_df
+    
+    USE_FP16 = True  # Set to False for normal training
+    if USE_FP16:
+        scaler = GradScaler()
+    else:
+        scaler = None
+
+    learning_rate = 1e-5
+    train_max_seq_len = 512
+    max_train_samples = None
+    max_eval_samples = None
+    max_predict_samples = None
+    batch_size = 16
+    best_macro_f1 = 0.0
+
+    # models
+    text_model = "aubmindlab/bert-base-arabertv2"
+    # text_model = "distilbert-base-multilingual-cased"
+    # text_model = "FacebookAI/xlm-roberta-base"
+    # text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
+    english_text_model = "roberta-base"
+    # image_model = 'vit_base_patch16_224'
+    image_model = "resnet50"
+    print(f"Image Model: {image_model} | Text Model: {text_model}")
+
+    fusion_method = "concatenation"  # ['mca', 'concatenation', 'cross_modal', 'self_attention']
+    print(f"Using Fusion: {fusion_method}")
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = MultimodalClassifier(fusion_method=fusion_method)
+    model.to(device)
+    # criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = sigmoid_focal_loss
+    optimizer = optim.Adam(model.get_params(learning_rate))
+    num_epochs = 20
+    total_steps = len(train_df) * num_epochs
+    warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
+    )
+
+    train_file = "arabic_memes_propaganda_araieval_24_train.json"
+    validation_file = "arabic_memes_propaganda_araieval_24_dev.json"
+    # test_file = 'arabic_memes_propaganda_araieval_24_test.json'
+
+    def read_data(fpath, is_test=False):
+        if is_test:
+            data = {"id": [], "text": [], "image": []}
+            js_obj = json.load(open(fpath, encoding="utf-8"))
+            for obj in tqdm(js_obj):
+                data["id"].append(obj["id"])
+                data["image"].append(obj["img_path"])
+                data["text"].append(obj["text"])
+        else:
+            data = {"id": [], "text": [], "image": [], "label": []}
+            js_obj = json.load(open(fpath, encoding="utf-8"))
+            for obj in tqdm(js_obj):
+                data["id"].append(obj["id"])
+                data["image"].append(obj["img_path"])
+                data["text"].append(obj["text"])
+                data["label"].append(obj["class_label"])
+        return pd.DataFrame.from_dict(data)
+
+
+    l2id = {"not_propaganda": 0, "propaganda": 1}
+
+    from sklearn.utils.class_weight import compute_class_weight
+
+    train_df = read_data(train_file)
+    train_df["label"] = train_df["label"].map(l2id)
+    class_labels = train_df["label"].tolist()
+    class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(class_labels), y=class_labels)
+    class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
+    print(f"class weights: {class_weights}")
+    train_df = MultimodalDataset(
+        train_df["id"], train_df["text"], train_df["image"], train_df["label"]
+    )
+
+    validation_df = read_data(validation_file)
+    validation_df["label"] = validation_df["label"].map(l2id)
+    validation_df = MultimodalDataset(
+        validation_df["id"],
+        validation_df["text"],
+        validation_df["image"],
+        validation_df["label"],
+    )
+
+    print("validation_df len:", len(validation_df))
+
+    train_df = torch.utils.data.DataLoader(
+        train_df, batch_size=batch_size, shuffle=True, drop_last=False
+    )
+    validation_df = torch.utils.data.DataLoader(
+        validation_df, batch_size=batch_size, shuffle=True, drop_last=False
+    )
+
 
 class ImageCaptioning:
     def __init__(self):
@@ -144,8 +231,6 @@ class MultimodalDataset(Dataset):
             return_tensors="pt",
         )
 
-        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-
         fdata = {
             "id": id,
             "text": text["input_ids"].squeeze(0),
@@ -160,115 +245,6 @@ class MultimodalDataset(Dataset):
             return fdata
         else:
             return fdata
-
-
-train_file = "arabic_memes_propaganda_araieval_24_train.json"
-validation_file = "arabic_memes_propaganda_araieval_24_dev.json"
-# test_file = 'arabic_memes_propaganda_araieval_24_test.json'
-
-text_model_name = text_model
-image_model_name = image_model
-
-import json
-
-import pandas as pd
-import PIL
-
-# from datasets import Image, Dataset,DatasetDict
-from tqdm import tqdm
-
-# Image.open(obj['img_path']).convert("RGB")
-
-
-def read_data(fpath, is_test=False):
-    if is_test:
-        data = {"id": [], "text": [], "image": []}
-        js_obj = json.load(open(fpath, encoding="utf-8"))
-        for obj in tqdm(js_obj):
-            data["id"].append(obj["id"])
-            data["image"].append(obj["img_path"])
-            data["text"].append(obj["text"])
-    else:
-        data = {"id": [], "text": [], "image": [], "label": []}
-        js_obj = json.load(open(fpath, encoding="utf-8"))
-        for obj in tqdm(js_obj):
-            data["id"].append(obj["id"])
-            data["image"].append(obj["img_path"])
-            data["text"].append(obj["text"])
-            data["label"].append(obj["class_label"])
-    return pd.DataFrame.from_dict(data)
-
-
-l2id = {"not_propaganda": 0, "propaganda": 1}
-
-from sklearn.utils.class_weight import compute_class_weight
-
-train_df = read_data(train_file)
-train_df["label"] = train_df["label"].map(l2id)
-class_labels = train_df["label"].tolist()
-class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(class_labels), y=class_labels)
-class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
-print(f"class weights: {class_weights}")
-train_df = MultimodalDataset(
-    train_df["id"], train_df["text"], train_df["image"], train_df["label"]
-)
-
-validation_df = read_data(validation_file)
-validation_df["label"] = validation_df["label"].map(l2id)
-validation_df = MultimodalDataset(
-    validation_df["id"],
-    validation_df["text"],
-    validation_df["image"],
-    validation_df["label"],
-)
-
-print("validation_df len:", len(validation_df))
-
-# test_df = read_data(test_file)
-# #test_df['label'] = test_df['label'].map(l2id)
-# test_df = MultimodalDataset(test_df['id'], test_df['text'], test_df['image']) #, test_df['label']
-
-
-# if max_train_samples is not None:
-#     max_train_samples_n = min(len(train_df), max_train_samples)
-#     train_df = train_df.select(range(max_train_samples_n))
-
-
-# if max_eval_samples is not None:
-#     max_eval_samples_n = min(len(validation_df), max_eval_samples)
-#     validation_df = validation_df.select(range(max_eval_samples_n))
-
-
-# if max_predict_samples is not None:
-#     max_predict_samples_n = min(len(test_df), max_predict_samples)
-#     predict_dataset = test_df.select(range(max_predict_samples_n))
-
-import random
-
-# for index in random.sample(range(len(train_df)), 3):
-#     print(f"Sample {index} of the training set: {train_df[index]}.")
-
-train_df = torch.utils.data.DataLoader(
-    train_df, batch_size=batch_size, shuffle=True, drop_last=True
-)
-validation_df = torch.utils.data.DataLoader(
-    validation_df, batch_size=batch_size, shuffle=True, drop_last=False
-)
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import timm
-from transformers import AutoModel, BertModel
-
-
-# Define the multimodal classification model
-# Define the multimodal classification model
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import timm
-from transformers import AutoModel
 
 
 class LLMWithClassificationHead(nn.Module):
@@ -526,11 +502,6 @@ class SelfAttentionFusion(nn.Module):
         return combined_features
 
 
-fusion_method = "concatenation"  # ['mca', 'concatenation', 'cross_modal', 'self_attention']
-print(f"Using Fusion: {fusion_method}")
-
-import torchvision.models as models
-
 class CustomDenseNet161(torch.nn.Module):
     
     def __init__(self, freeze_cnn):
@@ -583,7 +554,7 @@ class MultimodalClassifier(nn.Module):
         )
 
         # Initialize image model from a pre-trained model
-        self.image_model = timm.create_model(image_model_name, pretrained=True)
+        self.image_model = timm.create_model(image_model, pretrained=True)
         # print(f"in features before: {self.image_model.classifier.in_features}")
         self.image_model.classifier = nn.Sequential(
             nn.Linear(768, 512),
@@ -830,20 +801,6 @@ def evaluate(model, test_loader, device):
             for indx, l in enumerate(line.tolist()):
                 f.write(f"{ids[i][indx]}\t{id2l[l]}\t{run_id}\n")
 
-from torchvision.ops import sigmoid_focal_loss
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = MultimodalClassifier(fusion_method=fusion_method)
-model.to(device)
-# criterion = nn.CrossEntropyLoss(weight=class_weights)
-criterion = sigmoid_focal_loss
-optimizer = optim.Adam(model.get_params(learning_rate))
-num_epochs = 20
-total_steps = len(train_df) * num_epochs
-warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
-scheduler = get_linear_schedule_with_warmup(
-    optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
-)
 
 # Train the model
 for epoch in range(num_epochs):

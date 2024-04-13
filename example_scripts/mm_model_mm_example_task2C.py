@@ -35,8 +35,10 @@ from transformers import AutoTokenizer, BertTokenizer
 from sklearn.metrics import f1_score
 from transformers import get_linear_schedule_with_warmup
 import torch
-from transformers import ViTFeatureExtractor, ViTModel
-from PIL import Image
+# from transformers import ViTFeatureExtractor, ViTModel
+# from transformers import VisualBertTokenizer, VisualBertModel
+from transformers import CLIPProcessor, CLIPModel
+
 # text_model = "aubmindlab/bert-base-arabertv2"
 # text_model = "distilbert-base-multilingual-cased"
 # text_model = "FacebookAI/xlm-roberta-base"
@@ -44,26 +46,13 @@ from PIL import Image
 # english_text_model = "roberta-base"
 # image_model = "efficientnet_b5"
 # image_model = "resnet50"
-feature_model = 'google/vit-base-patch16-224-in21k'
-mmmodel = 'uclanlp/visualbert-nlvr2-coco-pre'
-print(f"feature Model: {mmmodel} | Multimodal Model: {mmmodel}")
+mmmodel = "openai/clip-vit-base-patch32"
+print(f"Multimodal Model: {mmmodel}")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 from transformers import BlipProcessor, BlipForConditionalGeneration
 
-class ImageCaptioning:
-    def __init__(self):
-        self.processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
-        self.model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large", torch_dtype=torch.float16).to("cuda")
-        self.model.eval()
-
-    def generate_caption(self, images, texts):
-        inputs = self.processor(images, texts, return_tensors="pt", padding=True).to("cuda", torch.float16)
-        captions = self.model.generate(**inputs)
-        captions = [self.processor.decode(capt, skip_special_tokens=True) for capt in captions]
-
-        return captions
 
 class MultimodalDataset(Dataset):
     def __init__(self, ids, text_data, image_data, labels, is_test=False):
@@ -73,9 +62,9 @@ class MultimodalDataset(Dataset):
         self.is_test = is_test
         # if not self.is_test:
         self.labels = labels
-        tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
-        feature_extractor = ViTFeatureExtractor.from_pretrained(feature_model)
-        feature_model = ViTModel.from_pretrained(feature_model)
+        self.tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+        self.feature_extractor = ViTFeatureExtractor.from_pretrained(feature_model_name)
+        self.feature_model = ViTModel.from_pretrained(feature_model_name)
         self.transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),  # Resize the image to 224x224
@@ -90,28 +79,6 @@ class MultimodalDataset(Dataset):
                 transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
         )
-        # Initialize ImageCaptioning and precalculate captions
-        self.image_cap = ImageCaptioning()
-        self.precalculated_captions = self.precompute_captions()
-        del self.image_cap
-
-    def precompute_captions(self):
-        conditional_gen_text = "a meme of"
-        batch_size = 64  # Adjust based on your GPU memory and model size
-        total_images = len(self.image_data)
-        captions = []
-        
-        for start_idx in tqdm(range(0, total_images, batch_size)):
-            end_idx = min(start_idx + batch_size, total_images)
-            batch_images = [Image.open(self.image_data[i]).convert("RGB") for i in range(start_idx, end_idx)]
-            batch_texts = [conditional_gen_text] * len(batch_images)
-            
-            with torch.no_grad():  # Ensure no gradients are computed to save memory
-                batch_captions = self.image_cap.generate_caption(images=batch_images, texts=batch_texts)
-            captions.extend(batch_captions)
-
-        return captions
-
 
     def __len__(self):
         return len(self.labels)
@@ -120,39 +87,32 @@ class MultimodalDataset(Dataset):
         id = self.ids[index]
         text = self.text_data[index]
         image = self.image_data[index]
-        # if not self.is_test:
         label = self.labels[index]
-        caption = self.precalculated_captions[index]
-        image = self.transform(Image.open(image).convert("RGB"))
+        image = self.transform(Image.open(image))  # .convert("RGB"))
         # text += ' ' + caption
 
         # tokenize text data
-        text = self.tokenizer.encode_plus(
+        text = self.tokenizer(
             text,
-            add_special_tokens=True,
-            max_length=train_max_seq_len,
             padding="max_length",
-            return_attention_mask=True,
+            max_length=self.sequence_length,
+            truncation=True,
             return_tensors="pt",
         )
 
-        caption_text = self.english_tokenizer.encode_plus(
-            caption,
-            add_special_tokens=True,
-            max_length=train_max_seq_len,
-            padding="max_length",
-            return_attention_mask=True,
-            return_tensors="pt",
-        )
-
-        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        img = np.array(image)
+        img = img[...,:3]
+        inputs = self.feature_extractor(images=img, return_tensors="pt")
+        outputs = self.feature_model(**inputs.to('cuda'))
+        visual_embeds = outputs.last_hidden_state
+        visual_embeds = visual_embeds.cpu()
 
         fdata = {
             "id": id,
             "text": text["input_ids"].squeeze(0),
             "text_mask": text["attention_mask"].squeeze(0),
-            "caption_text": caption_text["input_ids"].squeeze(0),
-            "caption_text_mask": caption_text["attention_mask"].squeeze(0),
+            "visual_token_type_ids": visual_token_type_ids.squeeze(),
+            "visual_attention_mask": visual_attention_mask.squeeze(),
             "image": image,
         }
 
@@ -207,7 +167,9 @@ from sklearn.utils.class_weight import compute_class_weight
 train_df = read_data(train_file)
 train_df["label"] = train_df["label"].map(l2id)
 class_labels = train_df["label"].tolist()
-class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(class_labels), y=class_labels)
+class_weights = compute_class_weight(
+    class_weight="balanced", classes=np.unique(class_labels), y=class_labels
+)
 class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
 print(f"class weights: {class_weights}")
 train_df = MultimodalDataset(
@@ -323,7 +285,7 @@ class LLMWithClassificationHead(nn.Module):
 
     def last_hidden_state(self, outputs):
         return outputs.last_hidden_state
-    
+
     def cls_pooling(self, outputs):
         return outputs.last_hidden_state[:, 0]
 
@@ -372,7 +334,9 @@ class MCA(nn.Module):
         # hidden_with_time_axis shape == (batch_size, 1, hidden_size)
         image_features_with_time_axis = image_features.unsqueeze(1)
 
-        score = torch.tanh(self.W1(text_features) + self.W2(image_features_with_time_axis))
+        score = torch.tanh(
+            self.W1(text_features) + self.W2(image_features_with_time_axis)
+        )
 
         attention_weights = F.softmax(self.V(score), dim=1)
 
@@ -386,7 +350,7 @@ class MCA(nn.Module):
         # context_vector = self.reduce(context_vector)
 
         return context_vector1
-    
+
 
 class MCA3(nn.Module):
     def __init__(self, units):
@@ -401,7 +365,11 @@ class MCA3(nn.Module):
         # hidden_with_time_axis shape == (batch_size, 1, hidden_size)
         image_features_with_time_axis = image_features.unsqueeze(1)
 
-        score = torch.tanh(self.W1(text_features) + self.W2(image_features_with_time_axis) + self.W3(caption_features))
+        score = torch.tanh(
+            self.W1(text_features)
+            + self.W2(image_features_with_time_axis)
+            + self.W3(caption_features)
+        )
 
         attention_weights = F.softmax(self.V(score), dim=1)
 
@@ -415,6 +383,7 @@ class MCA3(nn.Module):
         context_vector = self.reduce(context_vector)
 
         return context_vector
+
 
 class ConcatAttention(nn.Module):
     def __init__(self, input_dim, attention_dim):
@@ -439,7 +408,7 @@ class ConcatAttention(nn.Module):
         attended_features = self.reduce(attended_features)
         # print(f"Sizes: {concatenated_features.size()} | {attention_weights.size()} | {attended_features.size()} | {attended_features.sum(dim=1).size()} |")
         return attended_features
-    
+
 
 class ConcatAttention3(nn.Module):
     def __init__(self, input_dim, attention_dim):
@@ -459,7 +428,9 @@ class ConcatAttention3(nn.Module):
 
     def forward(self, text_features, image_features, caption_features):
         # print(f"text size: {text_features.size()} | image size: {image_features.size()} | caption size: {caption_features.size()}")
-        concatenated_features = torch.cat((text_features, image_features, caption_features), dim=1)
+        concatenated_features = torch.cat(
+            (text_features, image_features, caption_features), dim=1
+        )
         attention_weights = self.attention_layer(concatenated_features)
         attended_features = attention_weights * concatenated_features
         attended_features = self.reduce(attended_features)
@@ -527,7 +498,9 @@ class SelfAttentionFusion(nn.Module):
         return combined_features
 
 
-fusion_method = "concatenation"  # ['mca', 'concatenation', 'cross_modal', 'self_attention']
+fusion_method = (
+    "concatenation"  # ['mca', 'concatenation', 'cross_modal', 'self_attention']
+)
 print(f"Using Fusion: {fusion_method}")
 
 
@@ -614,14 +587,18 @@ class MultimodalClassifier(nn.Module):
         text_output = self.text_dropout(text_output)
         text_output = self.text_fc(text_output)
 
-        caption_text_output = self.caption_text_model(caption_text, attention_mask=caption_text_mask)
+        caption_text_output = self.caption_text_model(
+            caption_text, attention_mask=caption_text_mask
+        )
         caption_text_output = self.caption_text_dropout(caption_text_output)
         caption_text_output = self.caption_text_fc(caption_text_output)
 
         image_output = self.image_model(image)
 
         if hasattr(self, "fusion_layer"):
-            fused_output = self.fusion_layer(text_output, image_output, caption_text_output)
+            fused_output = self.fusion_layer(
+                text_output, image_output, caption_text_output
+            )
         else:
             raise ValueError(f"Unsupported fusion method: {self.fusion_method}")
 
@@ -654,7 +631,9 @@ def train(
                 labels = data["label"].to(device).float()
                 output = model(text, image, mask, caption_text, caption_text_mask)
                 # print(f"output: {output} \n####\n labels: {labels}\n###")
-                loss = criterion(output, labels, alpha=0.25, gamma=2.0, reduction='mean')
+                loss = criterion(
+                    output, labels, alpha=0.25, gamma=2.0, reduction="mean"
+                )
             scaler.scale(loss).backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
             max_grad_norm = 1.0  # Adjust the threshold as needed
@@ -669,7 +648,7 @@ def train(
             caption_text_mask = data["caption_text_mask"].to(device)
             labels = data["label"].to(device).float()
             output = model(text, image, mask, caption_text, caption_text_mask)
-            loss = criterion(output, labels, alpha=0.25, gamma=2.0, reduction='mean')
+            loss = criterion(output, labels, alpha=0.25, gamma=2.0, reduction="mean")
             loss.backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
             max_grad_norm = 10.0  # Adjust the threshold as needed
@@ -737,7 +716,9 @@ def test(model, test_loader, criterion, device, epoch):
                     caption_text_mask = data["caption_text_mask"].to(device)
                     labels = data["label"].to(device).float()
                     output = model(text, image, mask, caption_text, caption_text_mask)
-                    loss = criterion(output, labels, alpha=0.25, gamma=2.0, reduction='mean')
+                    loss = criterion(
+                        output, labels, alpha=0.25, gamma=2.0, reduction="mean"
+                    )
             else:
                 image = data["image"].to(device)
                 text = data["text"].to(device)
@@ -746,7 +727,9 @@ def test(model, test_loader, criterion, device, epoch):
                 caption_text_mask = data["caption_text_mask"].to(device)
                 labels = data["label"].to(device).float()
                 output = model(text, image, mask, caption_text, caption_text_mask)
-                loss = criterion(output, labels, alpha=0.25, gamma=2.0, reduction='mean')
+                loss = criterion(
+                    output, labels, alpha=0.25, gamma=2.0, reduction="mean"
+                )
 
             test_loss += loss.item() * labels.size(0)
             if output.dim() == 1:  # Binary classification
@@ -804,6 +787,7 @@ def evaluate(model, test_loader, device):
         for i, line in enumerate(predictions):
             for indx, l in enumerate(line.tolist()):
                 f.write(f"{ids[i][indx]}\t{id2l[l]}\t{run_id}\n")
+
 
 from torchvision.ops import sigmoid_focal_loss
 
