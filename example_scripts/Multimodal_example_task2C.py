@@ -46,6 +46,8 @@ def setup():
     else:
         scaler = None
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
     learning_rate = 1e-5
     train_max_seq_len = 512
     max_train_samples = None
@@ -122,7 +124,6 @@ def setup():
         validation_df, batch_size=batch_size, shuffle=True, drop_last=False
     )
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = MultimodalClassifier(fusion_method=fusion_method)
     model.to(device)
     # criterion = nn.CrossEntropyLoss(weight=class_weights)
