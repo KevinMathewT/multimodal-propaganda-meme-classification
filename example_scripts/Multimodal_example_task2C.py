@@ -164,7 +164,7 @@ def setup(k):
     # criterion = nn.CrossEntropyLoss(weight=class_weights)
     criterion = sigmoid_focal_loss
     optimizer = optim.Adam(model.get_params(learning_rate))
-    num_epochs = 20
+    num_epochs = 8
     total_steps = len(train_df) * num_epochs
     warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
     scheduler = get_linear_schedule_with_warmup(
