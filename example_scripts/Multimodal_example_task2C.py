@@ -846,6 +846,7 @@ def evaluate(model, test_loader, device):
                 prob = torch.sigmoid(output)
                 predicted = (prob > 0.5).float()
             else:  # Multiclass classification
+                print(prob)
                 prob = torch.softmax(output, dim=1)
                 _, predicted = torch.max(output, 1)
             predictions.append(predicted)
