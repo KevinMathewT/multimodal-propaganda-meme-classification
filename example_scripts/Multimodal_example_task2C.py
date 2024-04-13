@@ -16,7 +16,7 @@ import pandas as pd
 from tqdm import tqdm
 from PIL import Image
 from sklearn.metrics import f1_score
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.utils.class_weight import compute_class_weight
 
 import torch
@@ -99,10 +99,10 @@ def setup(fold):
 
     df = read_data(train_file)
     n_splits = 5
-    kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+    kf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     train_val_split = []
 
-    for train_index, val_index in kf.split(df):
+    for train_index, val_index in kf.split(df, df['label']):
         # Splitting the DataFrame
         train_df = df.iloc[train_index]
         val_df = df.iloc[val_index]
