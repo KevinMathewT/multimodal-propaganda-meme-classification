@@ -11,6 +11,7 @@
 
 import csv
 import json
+import random
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -36,13 +37,24 @@ from transformers import get_linear_schedule_with_warmup
 from transformers import AutoModel, BertModel, AutoTokenizer, BertTokenizer
 from transformers import BlipProcessor, BlipForConditionalGeneration
 
-def setup(fold):
-    global USE_FP16, scaler, learning_rate, train_max_seq_len, max_train_samples, \
+def seed_everything(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+def setup(k):
+    global fold, USE_FP16, scaler, learning_rate, train_max_seq_len, max_train_samples, \
            max_eval_samples, max_predict_samples, batch_size, best_macro_f1, \
            text_model, english_text_model, image_model, fusion_method, device, \
            model, criterion, optimizer, num_epochs, total_steps, warmup_steps, scheduler, \
            train_df, test_df, val_df
     
+    seed_everything()
+
+    fold = k
     USE_FP16 = True  # Set to False for normal training
     if USE_FP16:
         scaler = GradScaler()
@@ -819,6 +831,7 @@ def test(model, test_loader, criterion, device, epoch):
 def evaluate(model, test_loader, device):
     model.eval()
     predictions = []
+    probabilities = []
     y_test_pred = []
     ids = []
     with torch.no_grad():
@@ -833,8 +846,10 @@ def evaluate(model, test_loader, device):
                 prob = torch.sigmoid(output)
                 predicted = (prob > 0.5).float()
             else:  # Multiclass classification
+                prob = torch.softmax(output, dim=1)
                 _, predicted = torch.max(output, 1)
             predictions.append(predicted)
+            probabilities.append(prob.max(dim=1)[0])
             ids.append(data["id"])
 
     team_name = "kevinmathew"
@@ -849,7 +864,20 @@ def evaluate(model, test_loader, device):
             for indx, l in enumerate(line.tolist()):
                 f.write(f"{ids[i][indx]}\t{id2l[l]}\t{run_id}\n")
 
+    team_name = "kevinmathew"
+    fname = f"task2C_{team_name}_probs_fold_{fold}.tsv"
+    run_id = f"{team_name}_{image_model}_{text_model}_{english_text_model}_{fusion_method}.tsv"
+
+    with open(fname, "w") as f:
+        f.write("id\tlabel\tprob\trun_id\n")
+        indx = 0
+        id2l = {0: "not_propaganda", 1: "propaganda"}
+        for i, line in enumerate(predictions):
+            for indx, l in enumerate(line.tolist()):
+                f.write(f"{ids[i][indx]}\t{id2l[l]}\t{probabilities[i][indx]}\t{run_id}\n")
+                
+
 if __name__ == "__main__":
-    k = 0
-    print(f"training for fold: {k}")
-    setup(fold=k)
+    for k in range(5):
+        print(f"training for fold: {k}")
+        setup(fold=k)
