@@ -47,7 +47,7 @@ def setup():
         scaler = None
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
+
     learning_rate = 1e-5
     train_max_seq_len = 512
     max_train_samples = None
@@ -447,12 +447,12 @@ class ConcatAttention3(nn.Module):
         )
 
     def forward(self, text_features, image_features, caption_features):
-        # print(f"text size: {text_features.size()} | image size: {image_features.size()} | caption size: {caption_features.size()}")
+        print(f"text size: {text_features.size()} | image size: {image_features.size()} | caption size: {caption_features.size()}")
         concatenated_features = torch.cat((text_features, image_features, caption_features), dim=1)
         attention_weights = self.attention_layer(concatenated_features)
         attended_features = attention_weights * concatenated_features
         attended_features = self.reduce(attended_features)
-        # print(f"Sizes: {concatenated_features.size()} | {attention_weights.size()} | {attended_features.size()} | {attended_features.sum(dim=1).size()} |")
+        print(f"Sizes: {concatenated_features.size()} | {attention_weights.size()} | {attended_features.size()} | {attended_features.sum(dim=1).size()} |")
         return attended_features
 
 
