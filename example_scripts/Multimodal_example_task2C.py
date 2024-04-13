@@ -848,4 +848,6 @@ def evaluate(model, test_loader, device):
                 f.write(f"{ids[i][indx]}\t{id2l[l]}\t{run_id}\n")
 
 if __name__ == "__main__":
-    setup(fold=0)
+    k = 0
+    print(f"training for fold: {k}")
+    setup(fold=k)
