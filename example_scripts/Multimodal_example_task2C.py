@@ -157,7 +157,7 @@ class ImageCaptioning:
 
     def generate_caption(self, images, texts):
         inputs = self.processor(images, texts, return_tensors="pt", padding=True).to("cuda", torch.float16)
-        captions = self.model.generate(**inputs)
+        captions = self.model.generate(**inputs, max_new_tokens=128)
         captions = [self.processor.decode(capt, skip_special_tokens=True) for capt in captions]
 
         return captions
@@ -528,15 +528,15 @@ class CustomDenseNet161(torch.nn.Module):
                                          nn.ReLU(inplace=True),
                                          nn.Dropout(p=0.35),
                                          nn.Linear(in_features=512, out_features=512, bias=True))
-#         self.densenet161.classifier = self.fine_tune
+#         self.image_model.classifier = self.fine_tune
 
         
     def forward(self, x):
         
         # if self.freeze_cnn:
-        #     self.densenet161.requires_grad_ = False
-        #     self.densenet161.classifier.requires_grad_ = True
-        x = self.densenet161(x)
+        #     self.image_model.requires_grad_ = False
+        #     self.image_model.classifier.requires_grad_ = True
+        x = self.image_model(x)
         x = self.fine_tune(x)
         return x
 
