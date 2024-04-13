@@ -115,10 +115,15 @@ def setup(fold):
 
     test_df = read_data(test_file)
 
-    train_df.loc[:, "label"] = train_df["label"].map(l2id)
-    val_df.loc[:, "label"] = val_df["label"].map(l2id)
+    train_df.loc["label"] = train_df["label"].map(l2id)
+    val_df.loc["label"] = val_df["label"].map(l2id)
     test_df["label"] = test_df["label"].map(l2id)
 
+    class_labels = train_df["label"].tolist()
+    class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(class_labels), y=class_labels)
+    class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
+    print(f"class weights: {class_weights}")
+    
     train_df = MultimodalDataset(
         train_df["id"], train_df["text"], train_df["image"], train_df["label"]
     )
@@ -131,11 +136,6 @@ def setup(fold):
     print("train_df len:", len(train_df))
     print("val_df len:", len(val_df))
     print("test_df len:", len(test_df))
-
-    class_labels = train_df["label"].tolist()
-    class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(class_labels), y=class_labels)
-    class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
-    print(f"class weights: {class_weights}")
 
     train_df = DataLoader(
         train_df, batch_size=batch_size, shuffle=True, drop_last=False
