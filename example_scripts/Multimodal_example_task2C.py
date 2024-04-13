@@ -73,7 +73,6 @@ def setup():
     criterion = sigmoid_focal_loss
     optimizer = optim.Adam(model.get_params(learning_rate))
     num_epochs = 20
-    total_steps = len(train_df) * num_epochs
     warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
@@ -133,6 +132,8 @@ def setup():
     validation_df = torch.utils.data.DataLoader(
         validation_df, batch_size=batch_size, shuffle=True, drop_last=False
     )
+
+    total_steps = len(train_df) * num_epochs
 
     # Train the model
     for epoch in range(num_epochs):
