@@ -16,12 +16,14 @@ import pandas as pd
 from tqdm import tqdm
 from PIL import Image
 from sklearn.metrics import f1_score
-from torch.cuda.amp import autocast, GradScaler
+from sklearn.model_selection import KFold
+from sklearn.utils.class_weight import compute_class_weight
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from torch.cuda.amp import autocast, GradScaler
 from torch.utils.data import DataLoader, Dataset
 
 import timm
@@ -33,12 +35,12 @@ from transformers import get_linear_schedule_with_warmup
 from transformers import AutoModel, BertModel, AutoTokenizer, BertTokenizer
 from transformers import BlipProcessor, BlipForConditionalGeneration
 
-def setup():
+def setup(fold):
     global USE_FP16, scaler, learning_rate, train_max_seq_len, max_train_samples, \
            max_eval_samples, max_predict_samples, batch_size, best_macro_f1, \
            text_model, english_text_model, image_model, fusion_method, device, \
            model, criterion, optimizer, num_epochs, total_steps, warmup_steps, scheduler, \
-           train_df, validation_df
+           train_df, test_df, val_df
     
     USE_FP16 = True  # Set to False for normal training
     if USE_FP16:
@@ -70,7 +72,7 @@ def setup():
     print(f"Using Fusion: {fusion_method}")
 
     train_file = "arabic_memes_propaganda_araieval_24_train.json"
-    validation_file = "arabic_memes_propaganda_araieval_24_dev.json"
+    test_file = "arabic_memes_propaganda_araieval_24_dev.json"
     # test_file = 'arabic_memes_propaganda_araieval_24_test.json'
 
     def read_data(fpath, is_test=False):
@@ -94,34 +96,54 @@ def setup():
 
     l2id = {"not_propaganda": 0, "propaganda": 1}
 
-    from sklearn.utils.class_weight import compute_class_weight
+    df = read_data(train_file)
+    n_splits = 5
+    kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+    train_val_split = []
 
-    train_df = read_data(train_file)
+    for train_index, val_index in kf.split(df):
+        # Splitting the DataFrame
+        train_df = df.iloc[train_index]
+        val_df = df.iloc[val_index]
+        
+        # Append the split to your list
+        train_val_split.append((train_df, val_df))
+
+    # Accessing the first fold as an example
+    train_df, val_df = train_val_split[fold]
+
+    test_df = read_data(test_file)
+
     train_df["label"] = train_df["label"].map(l2id)
+    val_df["label"] = val_df["label"].map(l2id)
+    test_df["label"] = test_df["label"].map(l2id)
+
+    train_df = MultimodalDataset(
+        train_df["id"], train_df["text"], train_df["image"], train_df["label"]
+    )
+    val_df = MultimodalDataset(
+        val_df["id"], val_df["text"], val_df["image"], val_df["label"]
+    )
+    test_df = MultimodalDataset(
+        test_df["id"], test_df["text"], test_df["image"], test_df["label"],
+    )
+    print("train_df len:", len(train_df))
+    print("val_df len:", len(val_df))
+    print("test_df len:", len(test_df))
+
     class_labels = train_df["label"].tolist()
     class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(class_labels), y=class_labels)
     class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
     print(f"class weights: {class_weights}")
-    train_df = MultimodalDataset(
-        train_df["id"], train_df["text"], train_df["image"], train_df["label"]
-    )
 
-    validation_df = read_data(validation_file)
-    validation_df["label"] = validation_df["label"].map(l2id)
-    validation_df = MultimodalDataset(
-        validation_df["id"],
-        validation_df["text"],
-        validation_df["image"],
-        validation_df["label"],
-    )
-
-    print("validation_df len:", len(validation_df))
-
-    train_df = torch.utils.data.DataLoader(
+    train_df = DataLoader(
         train_df, batch_size=batch_size, shuffle=True, drop_last=False
     )
-    validation_df = torch.utils.data.DataLoader(
-        validation_df, batch_size=batch_size, shuffle=True, drop_last=False
+    val_df = DataLoader(
+        val_df, batch_size=batch_size, shuffle=True, drop_last=False
+    )
+    test_df = DataLoader(
+        test_df, batch_size=batch_size, shuffle=True, drop_last=False
     )
 
     model = MultimodalClassifier(fusion_method=fusion_method)
@@ -141,10 +163,16 @@ def setup():
         train_loss, acc = train(
             model, train_df, criterion, optimizer, scheduler, device, epoch, scaler
         )
-        test_loss, accuracy, macro_f1 = test(model, validation_df, criterion, device, epoch)
+        t_loss, t_accuracy, t_macro_f1 = test(model, test_df, criterion, device, epoch)
+        v_loss, v_accuracy, v_macro_f1 = test(model, val_df, criterion, device, epoch)
         print(
             "  ALL | Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}, F1 = {:.4f}".format(
-                epoch + 1, num_epochs, train_loss, test_loss, acc, accuracy, macro_f1
+                epoch + 1, num_epochs, train_loss, t_loss, acc, t_accuracy, t_macro_f1
+            )
+        )
+        print(
+            "  ALL | Epoch {}/{}: Train Loss = {:.4f}, Val Loss = {:.4f}, Train Accuracy = {:.4f}, Val Accuracy = {:.4f}, F1 = {:.4f}".format(
+                epoch + 1, num_epochs, train_loss, v_loss, acc, v_accuracy, v_macro_f1
             )
         )
 
@@ -709,16 +737,20 @@ def train(
 
         # Check test accuracy at equidistant intervals
         if batch_idx % check_interval == 0 or batch_idx == total_batches:
-            test_loss, accuracy, macro_f1 = test(
-                model, validation_df, criterion, device, epoch
+            t_loss, t_accuracy, t_macro_f1 = test(
+                model, test_df, criterion, device, epoch
+            )
+            v_loss, v_accuracy, v_macro_f1 = test(model, val_df, criterion, device, epoch)
+            print(
+                f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {t_loss:.4f} | Acc: {t_accuracy:.4f} | F1: {t_macro_f1:.4f} |"
             )
             print(
-                f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {test_loss:.4f} | Acc: {accuracy:.4f} | F1: {macro_f1:.4f} |"
+                f" VAL | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {v_loss:.4f} | Acc: {v_accuracy:.4f} | F1: {v_macro_f1:.4f} |"
             )
             global best_macro_f1
-            if macro_f1 > best_macro_f1:
-                best_macro_f1 = macro_f1
-                evaluate(model, validation_df, device)
+            if t_macro_f1 > best_macro_f1:
+                best_macro_f1 = t_macro_f1
+                evaluate(model, test_df, device)
 
     train_loss /= len(train_loader.dataset)
     accuracy = correct / len(train_loader.dataset)
@@ -816,4 +848,4 @@ def evaluate(model, test_loader, device):
                 f.write(f"{ids[i][indx]}\t{id2l[l]}\t{run_id}\n")
 
 if __name__ == "__main__":
-    setup()
+    setup(fold=0)
