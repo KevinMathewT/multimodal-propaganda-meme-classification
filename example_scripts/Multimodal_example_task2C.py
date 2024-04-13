@@ -12,6 +12,7 @@
 import csv
 import json
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 from PIL import Image
 from sklearn.metrics import f1_score
@@ -65,18 +66,6 @@ def setup():
 
     fusion_method = "concatenation"  # ['mca', 'concatenation', 'cross_modal', 'self_attention']
     print(f"Using Fusion: {fusion_method}")
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = MultimodalClassifier(fusion_method=fusion_method)
-    model.to(device)
-    # criterion = nn.CrossEntropyLoss(weight=class_weights)
-    criterion = sigmoid_focal_loss
-    optimizer = optim.Adam(model.get_params(learning_rate))
-    num_epochs = 20
-    warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
-    )
 
     train_file = "arabic_memes_propaganda_araieval_24_train.json"
     validation_file = "arabic_memes_propaganda_araieval_24_dev.json"
@@ -133,7 +122,18 @@ def setup():
         validation_df, batch_size=batch_size, shuffle=True, drop_last=False
     )
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = MultimodalClassifier(fusion_method=fusion_method)
+    model.to(device)
+    # criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = sigmoid_focal_loss
+    optimizer = optim.Adam(model.get_params(learning_rate))
+    num_epochs = 20
     total_steps = len(train_df) * num_epochs
+    warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
+    )
 
     # Train the model
     for epoch in range(num_epochs):
