@@ -568,14 +568,14 @@ class MultimodalClassifier(nn.Module):
         )
 
         # Initialize image model from a pre-trained model
-        self.image_model = timm.create_model(image_model, pretrained=True)
+        # self.image_model = timm.create_model(image_model, pretrained=True)
         # print(f"in features before: {self.image_model.classifier.in_features}")
-        self.image_model.classifier = nn.Sequential(
-            nn.Linear(768, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-        )
-        # self.image_model = CustomDenseNet161(False)
+        # self.image_model.classifier = nn.Sequential(
+        #     nn.Linear(768, 512),
+        #     nn.BatchNorm1d(512),
+        #     nn.ReLU(),
+        # )
+        self.image_model = CustomDenseNet161(False)
 
         self.fusion_method = fusion_method
         if fusion_method == "concatenation":
