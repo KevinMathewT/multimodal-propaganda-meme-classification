@@ -551,9 +551,10 @@ class CustomDenseNet161(torch.nn.Module):
         super().__init__()
         self.freeze_cnn = freeze_cnn
         self.image_model = models.densenet161(weights = "IMAGENET1K_V1")
+        self.image_model.classifier = torch.nn.Identity()
         # self.image_model = timm.create_model(image_model, pretrained=True)
-        self.image_model.reset_classifier(0)
-        self.fine_tune = nn.Sequential(nn.Linear(in_features=768, out_features=512, bias=True),
+        # self.image_model.reset_classifier(0)
+        self.fine_tune = nn.Sequential(nn.Linear(in_features=1000, out_features=512, bias=True),
                                          nn.ReLU(inplace=True),
                                          nn.Dropout(p=0.35),
                                          nn.Linear(in_features=512, out_features=512, bias=True))
