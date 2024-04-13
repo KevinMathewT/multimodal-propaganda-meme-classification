@@ -120,7 +120,7 @@ def setup(fold):
     test_df["label"] = test_df["label"].map(l2id)
 
     class_labels = train_df["label"].tolist()
-    print(class_labels)
+    print(train_df)
     class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(class_labels), y=class_labels)
     class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
     print(f"class weights: {class_weights}")
