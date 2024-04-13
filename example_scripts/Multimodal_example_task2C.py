@@ -29,6 +29,7 @@ from torch.utils.data import DataLoader, Dataset
 import timm
 
 from torchvision import transforms
+import torchvision.models as models
 from torchvision.ops import sigmoid_focal_loss
 
 from transformers import get_linear_schedule_with_warmup
@@ -549,13 +550,13 @@ class CustomDenseNet161(torch.nn.Module):
     def __init__(self, freeze_cnn):
         super().__init__()
         self.freeze_cnn = freeze_cnn
-        # self.image_model = models.densenet161(weights = "IMAGENET1K_V1")
-        self.image_model = timm.create_model(image_model, pretrained=True)
+        self.image_model = models.densenet161(weights = "IMAGENET1K_V1")
+        # self.image_model = timm.create_model(image_model, pretrained=True)
         self.image_model.reset_classifier(0)
-        self.fine_tune = nn.Sequential(nn.Linear(in_features=2048, out_features=1024, bias=True),
+        self.fine_tune = nn.Sequential(nn.Linear(in_features=768, out_features=512, bias=True),
                                          nn.ReLU(inplace=True),
                                          nn.Dropout(p=0.35),
-                                         nn.Linear(in_features=1024, out_features=512, bias=True))
+                                         nn.Linear(in_features=512, out_features=512, bias=True))
 #         self.image_model.classifier = self.fine_tune
 
         
