@@ -104,8 +104,8 @@ def setup(fold):
 
     for train_index, val_index in kf.split(df, df['label']):
         # Splitting the DataFrame
-        train_df = df.iloc[train_index]
-        val_df = df.iloc[val_index]
+        train_df = df.iloc[train_index].reset_index(drop=True)
+        val_df = df.iloc[val_index].reset_index(drop=True)
         
         # Append the split to your list
         train_val_split.append((train_df, val_df))
@@ -116,8 +116,8 @@ def setup(fold):
     test_df = read_data(test_file)
 
     print(train_df)
-    train_df["label"] = train_df["label"].map(l2id)
-    val_df["label"] = val_df["label"].map(l2id)
+    train_df.loc[:, "label"] = train_df["label"].map(l2id)
+    val_df.loc[:, "label"] = val_df["label"].map(l2id)
     test_df["label"] = test_df["label"].map(l2id)
 
     train_df = MultimodalDataset(
