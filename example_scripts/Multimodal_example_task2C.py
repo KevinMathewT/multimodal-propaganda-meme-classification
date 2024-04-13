@@ -848,9 +848,8 @@ def evaluate(model, test_loader, device):
             else:  # Multiclass classification
                 prob = torch.softmax(output, dim=1)
                 _, predicted = torch.max(output, 1)
-            print(prob)
             predictions.append(predicted)
-            probabilities.append(prob.max(dim=1)[0])
+            probabilities.append(prob)
             ids.append(data["id"])
 
     team_name = "kevinmathew"
