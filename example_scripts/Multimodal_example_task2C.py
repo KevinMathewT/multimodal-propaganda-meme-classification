@@ -134,6 +134,18 @@ def setup():
         validation_df, batch_size=batch_size, shuffle=True, drop_last=False
     )
 
+    # Train the model
+    for epoch in range(num_epochs):
+        train_loss, acc = train(
+            model, train_df, criterion, optimizer, scheduler, device, epoch, scaler
+        )
+        test_loss, accuracy, macro_f1 = test(model, validation_df, criterion, device, epoch)
+        print(
+            "  ALL | Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}, F1 = {:.4f}".format(
+                epoch + 1, num_epochs, train_loss, test_loss, acc, accuracy, macro_f1
+            )
+        )
+
 
 class ImageCaptioning:
     def __init__(self):
@@ -801,15 +813,5 @@ def evaluate(model, test_loader, device):
             for indx, l in enumerate(line.tolist()):
                 f.write(f"{ids[i][indx]}\t{id2l[l]}\t{run_id}\n")
 
-
-# Train the model
-for epoch in range(num_epochs):
-    train_loss, acc = train(
-        model, train_df, criterion, optimizer, scheduler, device, epoch, scaler
-    )
-    test_loss, accuracy, macro_f1 = test(model, validation_df, criterion, device, epoch)
-    print(
-        "  ALL | Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}, F1 = {:.4f}".format(
-            epoch + 1, num_epochs, train_loss, test_loss, acc, accuracy, macro_f1
-        )
-    )
+if __name__ == "__main__":
+    setup()
