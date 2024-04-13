@@ -880,4 +880,4 @@ def evaluate(model, test_loader, device):
 if __name__ == "__main__":
     for k in range(5):
         print(f"training for fold: {k}")
-        setup(fold=k)
+        setup(k=k)
