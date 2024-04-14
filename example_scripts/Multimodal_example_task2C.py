@@ -568,7 +568,7 @@ class CustomDenseNet161(torch.nn.Module):
         # self.image_model.classifier = torch.nn.Identity()
         self.image_model = timm.create_model(image_model, pretrained=True)
         self.image_model.reset_classifier(0)
-        self.fine_tune = nn.Sequential(nn.Linear(in_features=2208, out_features=512, bias=True),
+        self.fine_tune = nn.Sequential(nn.Linear(in_features=512, out_features=512, bias=True),
                                          nn.ReLU(inplace=True),
                                          nn.Dropout(p=0.35),
                                          nn.Linear(in_features=512, out_features=512, bias=True))
