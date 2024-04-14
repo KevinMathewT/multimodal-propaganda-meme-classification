@@ -80,7 +80,7 @@ def setup(k):
     # text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
     english_text_model = "roberta-base"
     # image_model = 'vit_base_patch16_224'
-    image_model = "resnet50"
+    image_model = "resnet18"
     print(f"Image Model: {image_model} | Text Model: {text_model}")
 
     fusion_method = "concatenation"  # ['mca', 'concatenation', 'cross_modal', 'self_attention']
@@ -564,10 +564,10 @@ class CustomDenseNet161(torch.nn.Module):
     def __init__(self, freeze_cnn):
         super().__init__()
         self.freeze_cnn = freeze_cnn
-        self.image_model = models.densenet161(weights = "IMAGENET1K_V1")
-        self.image_model.classifier = torch.nn.Identity()
-        # self.image_model = timm.create_model(image_model, pretrained=True)
-        # self.image_model.reset_classifier(0)
+        # self.image_model = models.densenet161(weights = "IMAGENET1K_V1")
+        # self.image_model.classifier = torch.nn.Identity()
+        self.image_model = timm.create_model(image_model, pretrained=True)
+        self.image_model.reset_classifier(0)
         self.fine_tune = nn.Sequential(nn.Linear(in_features=2208, out_features=512, bias=True),
                                          nn.ReLU(inplace=True),
                                          nn.Dropout(p=0.35),
