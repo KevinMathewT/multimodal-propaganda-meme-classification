@@ -16,7 +16,9 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from PIL import Image
+
 from sklearn.metrics import f1_score
+from sklearn.metrics import roc_curve, auc
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.utils.class_weight import compute_class_weight
 
@@ -176,8 +178,8 @@ def setup(k):
         train_loss, acc = train(
             model, train_df, criterion, optimizer, scheduler, device, epoch, scaler
         )
-        t_loss, t_accuracy, t_macro_f1 = test(model, test_df, criterion, device, epoch)
-        v_loss, v_accuracy, v_macro_f1 = test(model, val_df, criterion, device, epoch)
+        t_loss, t_accuracy, t_macro_f1, t_optimal_threshold = test(model, test_df, criterion, device, epoch)
+        v_loss, v_accuracy, v_macro_f1, v_optimal_threshold = test(model, val_df, criterion, device, epoch)
         print(
             "  ALL | Epoch {}/{}: Train Loss = {:.4f}, Test Loss = {:.4f}, Train Accuracy = {:.4f}, Test Accuracy = {:.4f}, F1 = {:.4f}".format(
                 epoch + 1, num_epochs, train_loss, t_loss, acc, t_accuracy, t_macro_f1
@@ -751,20 +753,20 @@ def train(
 
         # Check test accuracy at equidistant intervals
         if batch_idx % check_interval == 0 or batch_idx == total_batches:
-            t_loss, t_accuracy, t_macro_f1 = test(
+            t_loss, t_accuracy, t_macro_f1, t_optimal_threshold = test(
                 model, test_df, criterion, device, epoch
             )
-            v_loss, v_accuracy, v_macro_f1 = test(model, val_df, criterion, device, epoch)
+            v_loss, v_accuracy, v_macro_f1, v_optimal_threshold = test(model, val_df, criterion, device, epoch)
             print(
-                f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {t_loss:.4f} | Acc: {t_accuracy:.4f} | F1: {t_macro_f1:.4f} |"
+                f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {t_loss:.4f} | Acc: {t_accuracy:.4f} | F1: {t_macro_f1:.4f} | thresh: {t_optimal_threshold}"
             )
             print(
-                f" VAL | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {v_loss:.4f} | Acc: {v_accuracy:.4f} | F1: {v_macro_f1:.4f} |"
+                f" VAL | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Test Loss: {v_loss:.4f} | Acc: {v_accuracy:.4f} | F1: {v_macro_f1:.4f} | thresh: {v_optimal_threshold}"
             )
             global best_macro_f1
             if t_macro_f1 > best_macro_f1:
                 best_macro_f1 = t_macro_f1
-                evaluate(model, test_df, device)
+                evaluate(model, test_df, t_optimal_threshold, device)
 
     train_loss /= len(train_loader.dataset)
     accuracy = correct / len(train_loader.dataset)
@@ -780,7 +782,7 @@ def test(model, test_loader, criterion, device, epoch):
     correct = 0
     total_batches = len(test_loader)
     true_labels = []
-    predicted_labels = []
+    predicted_probs = []
 
     with torch.no_grad():
         for batch_idx, data in enumerate(test_loader, 1):
@@ -805,30 +807,34 @@ def test(model, test_loader, criterion, device, epoch):
                 loss = criterion(output, labels, alpha=0.25, gamma=2.0, reduction='mean')
 
             test_loss += loss.item() * labels.size(0)
-            if output.dim() == 1:  # Binary classification
-                prob = torch.sigmoid(output)
-                predicted = (prob > 0.5).float()
-            else:  # Multiclass classification
-                _, predicted = torch.max(output, 1)
-            correct += (predicted == labels).sum().item()
+            prob = torch.sigmoid(output)
+            predicted_probs.extend(prob.cpu().numpy())
             true_labels.extend(labels.cpu().numpy())
-            predicted_labels.extend(predicted.cpu().numpy())
 
             if batch_idx % 10 == 0:
                 print(
                     f" TEST | Epoch [{epoch}] | Batch [{batch_idx}/{total_batches}] | Loss: {loss.item():.4f} |"
                 )
+    # Calculate optimal threshold
+    fpr, tpr, thresholds = roc_curve(true_labels, predicted_probs)
+    optimal_idx = np.argmax(tpr - fpr)
+    optimal_threshold = thresholds[optimal_idx]
+    print(f"Optimal Threshold: {optimal_threshold}")
+
+    # Adjust predictions based on the optimal threshold
+    predicted = (np.array(predicted_probs) > optimal_threshold).astype(float)
+    correct = (predicted == np.array(true_labels)).sum()
 
     test_loss /= len(test_loader.dataset)
     accuracy = correct / len(test_loader.dataset)
-    macro_f1 = f1_score(true_labels, predicted_labels, average="macro")
+    macro_f1 = f1_score(true_labels, predicted, average="macro")
     print(
-        f" TEST | Epoch [{epoch}] | Testing Loss: {test_loss:.4f} | Accuracy: {accuracy:.4f} | Macro F1: {macro_f1:.4f} |"
+        f" TEST | Epoch [{epoch}] | Testing Loss: {test_loss:.4f} | Accuracy: {accuracy:.4f} | Macro F1: {macro_f1:.4f} | optim t: {optimal_threshold} |"
     )
-    return test_loss, accuracy, macro_f1
+    return test_loss, accuracy, macro_f1, optimal_threshold
 
 
-def evaluate(model, test_loader, device):
+def evaluate(model, test_loader, t_optimal_threshold, device):
     model.eval()
     predictions = []
     probabilities = []
@@ -842,12 +848,8 @@ def evaluate(model, test_loader, device):
             caption_text = data["caption_text"].to(device)
             caption_text_mask = data["caption_text_mask"].to(device)
             output = model(text, image, mask, caption_text, caption_text_mask)
-            if output.dim() == 1:  # Binary classification
-                prob = torch.sigmoid(output)
-                predicted = (prob > 0.5).float()
-            else:  # Multiclass classification
-                prob = torch.softmax(output, dim=1)
-                _, predicted = torch.max(output, 1)
+            prob = torch.sigmoid(output)
+            predicted = (prob > t_optimal_threshold).float()
             predictions.append(predicted)
             probabilities.append(prob)
             ids.append(data["id"])
@@ -878,6 +880,6 @@ def evaluate(model, test_loader, device):
                 
 
 if __name__ == "__main__":
-    for k in [4]:
+    for k in [0, 1, 2, 3, 4]:
         print(f"training for fold: {k}")
         setup(k=k)

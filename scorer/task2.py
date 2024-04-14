@@ -79,7 +79,7 @@ def evaluate(gold_fpath, pred_fpath):
     :param lang: ar, en, or es.
     """
 
-    #Gold files are differently formatted for 1A and 1B, we need to update this part to serve both
+    # Gold files are differently formatted for 1A and 1B, we need to update this part to serve both
     # Handles reading separately for jsonl and tsv/csvs now
     gold_labels_dict, pred_labels_dict = _read_gold_and_pred(gold_fpath, pred_fpath)
     gold_labels=[]
