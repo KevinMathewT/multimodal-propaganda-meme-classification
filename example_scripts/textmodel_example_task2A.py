@@ -16,7 +16,7 @@ if USE_FP16:
 else:
     scaler = None
 
-learning_rate = 5e-5
+learning_rate = 3e-5
 num_train_epochs = 20
 train_max_seq_len = 512
 max_train_samples = None
@@ -329,7 +329,8 @@ def train(
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
             optimizer.step()
 
-        scheduler.step()
+        if scheduler is not None:
+            scheduler.step()
         train_loss += loss.item() * labels.size(0)
         batch_losses.append(loss.item())  # Append the loss for the current batch
         _, predicted = torch.max(output, 1)
@@ -445,10 +446,11 @@ model.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 total_steps = len(train_df) * num_train_epochs
-warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
-scheduler = get_linear_schedule_with_warmup(
-    optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
-)
+# warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
+# scheduler = get_linear_schedule_with_warmup(
+#     optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
+# )
+scheduler = None
 
 # Train the model
 for epoch in range(num_train_epochs):
