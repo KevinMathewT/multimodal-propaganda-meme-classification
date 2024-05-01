@@ -35,9 +35,13 @@ from transformers import AutoTokenizer, BertTokenizer
 from sklearn.metrics import f1_score
 from transformers import get_linear_schedule_with_warmup
 
-text_model = "aubmindlab/bert-base-arabertv2"
+# text_model = "aubmindlab/bert-base-arabertv2"
 # text_model = "distilbert-base-multilingual-cased"
 # text_model = 'CAMeL-Lab/bert-base-arabic-camelbert-mix-pos-egy'
+text_model = "qarib/bert-base-qarib"
+# [aubmindlab/bert-base-arabertv02-twitter, aubmindlab/bert-large-arabertv02-twitter, aubmindlab/bert-base-arabertv2, 
+#  distilbert-base-multilingual-cased, bert-base-multilingual-cased, UBC-NLP/MARBERT, qarib/bert-base-qarib, UBC-NLP/MARBERTv2,
+#  CAMeL-Lab/bert-base-arabic-camelbert-mix-did-madar-corpus26, asafaya/bert-mini-arabic, qarib/bert-base-qarib60_1970k]
 print(f"Text Model: {text_model}")
 
 
