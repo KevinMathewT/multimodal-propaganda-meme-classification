@@ -57,7 +57,7 @@ from sklearn.model_selection import StratifiedKFold
 import re
 import time
 from emoji import demojize
-from googletrans import Translator, LANGUAGES
+# from googletrans import Translator, LANGUAGES
 
 import pyarabic
 from pyarabic.araby import strip_diacritics
@@ -83,19 +83,19 @@ def seed_everything(seed=42):
     torch.backends.cudnn.benchmark = False
 
 
-def translate_to_arabic(text, max_retries=3):
-    translator = Translator()
-    retry_count = 0
-    while retry_count < max_retries:
-        try:
-            if not all("\u0600" <= ch <= "\u06FF" for ch in text):
-                return translator.translate(text, src='en', dest='ar').text
-            return text
-        except Exception as e:
-            print(f"Retry {retry_count+1}/{max_retries} failed with error: {e}")
-            time.sleep(2**retry_count)  # Exponential back-off
-            retry_count += 1
-    return text  # return the original text if all retries fail
+# def translate_to_arabic(text, max_retries=3):
+#     translator = Translator()
+#     retry_count = 0
+#     while retry_count < max_retries:
+#         try:
+#             if not all("\u0600" <= ch <= "\u06FF" for ch in text):
+#                 return translator.translate(text, src='en', dest='ar').text
+#             return text
+#         except Exception as e:
+#             print(f"Retry {retry_count+1}/{max_retries} failed with error: {e}")
+#             time.sleep(2**retry_count)  # Exponential back-off
+#             retry_count += 1
+#     return text  # return the original text if all retries fail
 
 def remove_english_words(text):
     words = pyarabic.araby.tokenize(text)
