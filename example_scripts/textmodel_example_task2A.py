@@ -44,6 +44,82 @@ text_model = "qarib/bert-base-qarib"
 #  CAMeL-Lab/bert-base-arabic-camelbert-mix-did-madar-corpus26, asafaya/bert-mini-arabic, qarib/bert-base-qarib60_1970k]
 print(f"Text Model: {text_model}")
 
+import os
+import json
+import torch
+import random
+import swifter
+import numpy as np
+import pandas as pd
+from tqdm.notebook import tqdm
+from sklearn.model_selection import StratifiedKFold
+
+import re
+import time
+from emoji import demojize
+from googletrans import Translator, LANGUAGES
+
+import pyarabic
+from pyarabic.araby import strip_diacritics
+from pyarabic.normalize import normalize_searchtext, normalize_hamza, normalize_lamalef, normalize_spellerrors, strip_tashkeel, strip_tatweel
+
+tqdm.pandas()
+
+def seed_everything(seed=42):
+    """
+    Seed all RNGs for reproducibility across Python's built-in `random`, `numpy`, and PyTorch.
+
+    Parameters:
+    - seed: An integer seed for the RNGs.
+    """
+    random.seed(seed)               # Python's built-in RNG
+    np.random.seed(seed)            # Numpy RNG
+    os.environ["PYTHONHASHSEED"] = str(seed)  # Environment variable for Python hashing
+    
+    torch.manual_seed(seed)         # PyTorch RNG
+    torch.cuda.manual_seed(seed)    # For CUDA
+    torch.cuda.manual_seed_all(seed) # For multi-GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+def translate_to_arabic(text, max_retries=3):
+    translator = Translator()
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            if not all("\u0600" <= ch <= "\u06FF" for ch in text):
+                return translator.translate(text, src='en', dest='ar').text
+            return text
+        except Exception as e:
+            print(f"Retry {retry_count+1}/{max_retries} failed with error: {e}")
+            time.sleep(2**retry_count)  # Exponential back-off
+            retry_count += 1
+    return text  # return the original text if all retries fail
+
+def remove_english_words(text):
+    words = pyarabic.araby.tokenize(text)
+    arabic_words = [word for word in words if pyarabic.araby.is_arabicrange(word)]
+    return ' '.join(arabic_words)
+    
+def preprocess_tweet(tweet):
+    # Convert emojis to text
+    tweet = demojize(tweet, language='ar')
+    
+    # Handle hashtags and URLs by removing them
+    tweet = re.sub(r"#\S+", " ", tweet)  # Remove hashtags
+    tweet = re.sub(r"https?:\/\/\S+", " ", tweet)  # Remove URLs
+    # tweet = translate_to_arabic(tweet)
+    # tweet = normalize_searchtext(tweet)
+    tweet = normalize_hamza(tweet)
+    tweet = normalize_lamalef(tweet)
+    # tweet = normalize_spellerrors(tweet)
+    tweet = strip_tashkeel(tweet)
+    # tweet = strip_tatweel(tweet)
+    tweet = strip_diacritics(tweet)
+    tweet = remove_english_words(tweet)
+    
+    return tweet.strip()
 
 class TextDataset(Dataset):
     def __init__(
@@ -118,7 +194,7 @@ def read_data(fpath, is_test=False):
         js_obj = json.load(open(fpath, encoding="utf-8"))
         for obj in tqdm(js_obj):
             data["id"].append(obj["id"])
-            data["text"].append(obj["text"])
+            data["text"].append(preprocess_tweet(obj["text"]))
             data["label"].append(obj["class_label"])
     return pd.DataFrame.from_dict(data)
 
