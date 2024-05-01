@@ -352,7 +352,7 @@ class LLMWithClassificationHead(nn.Module):
         return pooled_output
 
 
-pooling_type = "cls"
+pooling_type = "attention"
 
 
 # Define the training and testing functions
