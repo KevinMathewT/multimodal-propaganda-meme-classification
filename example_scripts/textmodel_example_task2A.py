@@ -522,7 +522,7 @@ model.to(device)
 criterion = nn.CrossEntropyLoss()
 # optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 rmsprop_settings = {
-            'lr': lr,
+            'lr': learning_rate,
             'alpha': 0.99,
             'eps': 1e-8,
             'weight_decay': 0,
