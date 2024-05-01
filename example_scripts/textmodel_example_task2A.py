@@ -520,7 +520,15 @@ model = LLMWithClassificationHead(
 )
 model.to(device)
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+# optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+rmsprop_settings = {
+            'lr': lr,
+            'alpha': 0.99,
+            'eps': 1e-8,
+            'weight_decay': 0,
+            'momentum': 0,
+        }
+optimizer = optim.RMSprop(model.parameters(), **rmsprop_settings)
 total_steps = len(train_df) * num_train_epochs
 # warmup_steps = int(0.1 * total_steps)  # Adjust the warmup ratio as needed
 # scheduler = get_linear_schedule_with_warmup(
