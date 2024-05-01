@@ -337,7 +337,7 @@ def train(
         correct += (predicted == labels).sum().item()
 
         if batch_idx % 10 == 0:
-            current_lr = scheduler.get_last_lr()[0]  # Get the current learning rate
+            current_lr = scheduler.get_last_lr()[0] if scheduler is not None else learning_rate # Get the current learning rate
             avg_loss = sum(batch_losses) / len(
                 batch_losses
             )  # Calculate the average loss
