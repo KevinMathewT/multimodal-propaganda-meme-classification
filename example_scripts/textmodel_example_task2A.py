@@ -259,7 +259,7 @@ sample = random.sample(range(len(train_df)), 3)
 print(sample)
 print(train_df)
 for index in sample:
-    print(f"Sample {index} of the training set: {train_df[index]}.")
+    print(f"Sample {index} of the training set: {train_df.iloc[index]}.")
 
 train_df = torch.utils.data.DataLoader(
     train_df, batch_size=8, shuffle=True, drop_last=True
