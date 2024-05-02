@@ -536,7 +536,7 @@ def evaluate(model, test_loader, device, is_test=False):
             probabilities.append(probs[:, 1].cpu().numpy())  # Add probabilities for positive class
             ids.append(data["id"])
 
-    print(list(zip(probabilities, predictions)))
+    # print(list(zip(probabilities, predictions)))
     team_name = "kevinmathew"
     if is_test:
         fname = f"task2A_{team_name}_fold{FOLD}.tsv"
