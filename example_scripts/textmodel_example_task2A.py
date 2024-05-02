@@ -262,13 +262,13 @@ for index in sample:
     print(f"Sample {index} of the training set: {train_df[index]}.")
 
 train_df = torch.utils.data.DataLoader(
-    train_df, batch_size=8, shuffle=True, drop_last=True
+    train_df, batch_size=8, shuffle=True, drop_last=False
 )
 validation_df = torch.utils.data.DataLoader(
     validation_df, batch_size=8, shuffle=True, drop_last=False
 )
 test_df = torch.utils.data.DataLoader(
-    test_df, batch_size=8, shuffle=True, drop_last=False
+    test_df, batch_size=8, shuffle=False, drop_last=False
 )
 
 import torch
