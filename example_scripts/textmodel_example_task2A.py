@@ -185,9 +185,9 @@ import sys
 # Check if at least one argument is provided
 if len(sys.argv) > 1:
     FOLD = int(sys.argv[1])  # sys.argv[0] is the script name
-    print(f"Stored value: {FOLD}")
+    print(f"fold: {FOLD}")
 else:
-    print("No argument provided")
+    print("No fold provided")
     exit(0)
 
 N_SPLITS = 10  # Define the number of splits for K-Fold
@@ -198,7 +198,7 @@ def read_data(fpath, is_test=False):
         js_obj = json.load(open(fpath, encoding="utf-8"))
         for obj in tqdm(js_obj):
             data["id"].append(obj["id"])
-            data["text"].append(obj["text"])
+            data["text"].append(preprocess_tweet(obj["text"]))
     else:
         data = {"id": [], "text": [], "label": []}
         js_obj = json.load(open(fpath, encoding="utf-8"))
@@ -235,7 +235,7 @@ validation_df = validation_data
 train_dataset = TextDataset(train_data["id"], train_data["text"], train_data["label"], text_model=text_model)
 validation_dataset = TextDataset(validation_data["id"], validation_data["text"], validation_data["label"], text_model=text_model)
 
-test_df = read_data(test_file)
+test_df = read_data(test_file, is_test=True)
 # test_df['label'] = test_df['label'].map(l2id)
 test_df = TextDataset(test_df['id'], test_df['text'], None, text_model=text_model, is_test=True) #, test_df['label']
 
