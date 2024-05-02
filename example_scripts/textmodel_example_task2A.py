@@ -490,6 +490,7 @@ def test(model, test_loader, criterion, device, epoch):
 def evaluate(model, test_loader, device):
     model.eval()
     predictions = []
+    logits = []
     y_test_pred = []
     ids = []
     with torch.no_grad():
@@ -499,19 +500,22 @@ def evaluate(model, test_loader, device):
             output = model(text, mask)
             _, predicted = torch.max(output, 1)
             predictions.append(predicted)
+            logits.append(output.cpu().numpy())  # Add logits to the list
             ids.append(data["id"])
 
+    print(logits)
     team_name = "kevinmathew"
     fname = f"task2A_{team_name}.tsv"
     run_id = f"{team_name}_{text_model}_{pooling_type}.tsv"
 
     with open(fname, "w") as f:
-        f.write("id\tlabel\trun_id\n")
+        f.write("id\tlabel\tlogits\trun_id\n")  # Add 'logits' column header
         indx = 0
         id2l = {0: "not_propaganda", 1: "propaganda"}
         for i, line in enumerate(predictions):
             for indx, l in enumerate(line.tolist()):
-                f.write(f"{ids[i][indx]}\t{id2l[l]}\t{run_id}\n")
+                logit_values = logits[i][indx]  # Get the logit values for the current prediction
+                f.write(f"{ids[i][indx]}\t{id2l[l]}\t{logit_values}\t{run_id}\n")
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
