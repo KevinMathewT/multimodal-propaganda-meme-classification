@@ -317,7 +317,7 @@ class LLMWithClassificationHead(nn.Module):
         self.output_layer = nn.Linear(hidden_size, num_classes)
 
     def forward(self, input_ids, attention_mask, labels=None):
-        print(input_ids.size(), attention_mask.size())
+        # print(input_ids.size(), attention_mask.size())
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
 
         if self.pooling_type == "cls":
