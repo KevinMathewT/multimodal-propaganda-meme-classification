@@ -184,7 +184,7 @@ import sys
 
 # Check if at least one argument is provided
 if len(sys.argv) > 1:
-    FOLD = sys.argv[1]  # sys.argv[0] is the script name
+    FOLD = int(sys.argv[1])  # sys.argv[0] is the script name
     print(f"Stored value: {FOLD}")
 else:
     print("No argument provided")
