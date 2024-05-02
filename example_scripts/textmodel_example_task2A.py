@@ -143,8 +143,8 @@ class TextDataset(Dataset):
     def __getitem__(self, index):
         id = self.ids[index]
         text = self.text_data[index]
-        # if not self.is_test:
-        label = self.labels[index]
+        if not self.is_test:
+            label = self.labels[index]
 
         # tokenize text data
         text = self.tokenizer.encode_plus(
@@ -171,7 +171,7 @@ class TextDataset(Dataset):
 
 train_file = "arabic_memes_propaganda_araieval_24_train.json"
 validation_file = "arabic_memes_propaganda_araieval_24_dev.json"
-# test_file = 'arabic_memes_propaganda_araieval_24_test.json'
+test_file = 'arabic_memes_propaganda_araieval_24_test.json'
 
 text_model_name = text_model
 
@@ -180,7 +180,17 @@ import json
 import pandas as pd
 import PIL
 from tqdm import tqdm
+import sys
 
+# Check if at least one argument is provided
+if len(sys.argv) > 1:
+    FOLD = sys.argv[1]  # sys.argv[0] is the script name
+    print(f"Stored value: {FOLD}")
+else:
+    print("No argument provided")
+    exit(0)
+
+N_SPLITS = 10  # Define the number of splits for K-Fold
 
 def read_data(fpath, is_test=False):
     if is_test:
@@ -199,21 +209,35 @@ def read_data(fpath, is_test=False):
     return pd.DataFrame.from_dict(data)
 
 
+# Define your label to ID mapping
 l2id = {"not_propaganda": 0, "propaganda": 1}
 
+# Read training and validation data
 train_df = read_data(train_file)
-train_df["label"] = train_df["label"].map(l2id)
-train_df = TextDataset(train_df["id"], train_df["text"], train_df["label"], text_model=text_model)
-
 validation_df = read_data(validation_file)
-validation_df["label"] = validation_df["label"].map(l2id)
-validation_df = TextDataset(
-    validation_df["id"], validation_df["text"], validation_df["label"], text_model=text_model
-)
 
-# test_df = read_data(test_file)
-# #test_df['label'] = test_df['label'].map(l2id)
-# test_df = MultimodalDataset(test_df['id'], test_df['text'], text_model=text_model) #, test_df['label']
+# Combine dataframes
+combined_df = pd.concat([train_df, validation_df])
+combined_df["label"] = combined_df["label"].map(l2id)
+
+# Stratified K-Fold on the combined dataframe
+skf = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=42)
+for fold, (train_idx, val_idx) in enumerate(skf.split(combined_df, combined_df["label"])):
+    if fold == FOLD:
+        train_data = combined_df.iloc[train_idx]
+        validation_data = combined_df.iloc[val_idx]
+        break
+
+train_df = train_data
+validation_df = validation_data
+
+# Create datasets
+train_dataset = TextDataset(train_data["id"], train_data["text"], train_data["label"], text_model=text_model)
+validation_dataset = TextDataset(validation_data["id"], validation_data["text"], validation_data["label"], text_model=text_model)
+
+test_df = read_data(test_file)
+# test_df['label'] = test_df['label'].map(l2id)
+test_df = TextDataset(test_df['id'], test_df['text'], None, text_model=text_model, is_test=True) #, test_df['label']
 
 
 if max_train_samples is not None:
@@ -434,6 +458,7 @@ def train(
             if macro_f1 > best_macro_f1:
                 best_macro_f1 = macro_f1
                 evaluate(model, validation_df, device)
+                evaluate(model, test_df, device, is_test=True)
 
     train_loss /= len(train_loader.dataset)
     accuracy = correct / len(train_loader.dataset)
@@ -487,7 +512,7 @@ def test(model, test_loader, criterion, device, epoch):
     return test_loss, accuracy, macro_f1
 
 
-def evaluate(model, test_loader, device):
+def evaluate(model, test_loader, device, is_test=False):
     model.eval()
     predictions = []
     probabilities = []
@@ -506,9 +531,12 @@ def evaluate(model, test_loader, device):
 
     print(list(zip(probabilities, predictions)))
     team_name = "kevinmathew"
-    fname = f"task2A_{team_name}.tsv"
-    run_id = f"{team_name}_{text_model}_{pooling_type}.tsv"
+    if is_test:
+        fname = f"task2A_{team_name}_fold{FOLD}.tsv"
+    else:
+        fname = f"val_task2A_{team_name}_fold{FOLD}.tsv"
 
+        run_id = f"{team_name}_{text_model}_{pooling_type}_fold{FOLD}.tsv"
     with open(fname, "w") as f:
         f.write("id\tlabel\tpropaganda_probability\trun_id\n")  # Add 'propaganda_probability' column header
         indx = 0
