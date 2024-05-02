@@ -224,8 +224,8 @@ combined_df["label"] = combined_df["label"].map(l2id)
 skf = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=42)
 for fold, (train_idx, val_idx) in enumerate(skf.split(combined_df, combined_df["label"])):
     if fold == FOLD:
-        train_data = combined_df.iloc[train_idx]
-        validation_data = combined_df.iloc[val_idx]
+        train_data = combined_df.iloc[train_idx].reset_index(drop=True)
+        validation_data = combined_df.iloc[val_idx].reset_index(drop=True
         break
 
 train_df = train_data
