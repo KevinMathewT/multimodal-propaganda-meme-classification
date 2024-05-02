@@ -255,8 +255,10 @@ if max_eval_samples is not None:
 #     predict_dataset = test_df.select(range(max_predict_samples_n))
 
 import random
-
-for index in random.sample(range(len(train_df)), 3):
+sample = random.sample(range(len(train_df)), 3)
+print(sample)
+print(train_df)
+for index in sample:
     print(f"Sample {index} of the training set: {train_df[index]}.")
 
 train_df = torch.utils.data.DataLoader(
