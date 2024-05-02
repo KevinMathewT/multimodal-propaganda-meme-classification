@@ -82,6 +82,7 @@ def seed_everything(seed=42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+seed_everything()
 
 # def translate_to_arabic(text, max_retries=3):
 #     translator = Translator()
@@ -542,7 +543,7 @@ def evaluate(model, test_loader, device, is_test=False):
     else:
         fname = f"val_task2A_{team_name}_fold{FOLD}.tsv"
 
-        run_id = f"{team_name}_{text_model}_{pooling_type}_fold{FOLD}.tsv"
+    run_id = f"{team_name}_{text_model}_{pooling_type}_fold{FOLD}.tsv"
     with open(fname, "w") as f:
         f.write("id\tlabel\tpropaganda_probability\trun_id\n")  # Add 'propaganda_probability' column header
         indx = 0
